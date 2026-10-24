@@ -2,8 +2,9 @@
 
 Backend API cho CuteTeachy (Serene Educator): Tasks & Schedule, Notes & To-Dos, Tags, User & Settings, Push Notification. Nghiệp vụ: [`docs/ba/`](docs/ba/), thuật ngữ: [`../CuteTeachy-FE/GLOSSARY.md`](../CuteTeachy-FE/GLOSSARY.md).
 
-**Stack (đã chốt):** NestJS + TypeScript (strict) · Prisma · Supabase PostgreSQL (chỉ dùng làm database) · Auth do BE tự quản lý (tài khoản email/mật khẩu + Google OAuth, BE tự phát token) · MinIO (lưu file, ví dụ avatar).
+**Stack (đã chốt):** NestJS + TypeScript (strict) · Prisma · Supabase PostgreSQL (chỉ dùng làm database) · Auth do BE tự quản lý (tài khoản email/mật khẩu + Google OAuth, BE tự phát token) · Lưu file qua port `ObjectStorage` chuẩn S3: MinIO khi dev, Cloudflare R2 production · Email: Mailpit khi dev, Gmail SMTP (App Password) production. Cấu hình dịch vụ ngoài: [`docs/setup/external-services.md`](docs/setup/external-services.md).
 **Trạng thái:** chưa scaffold. Lệnh build/test/lint: `[CẦN BỔ SUNG sau khi scaffold — đọc từ package.json]`.
+**Deploy:** Vercel serverless ([ADR 0005](docs/adr/0005-serverless-on-vercel.md)) — không giữ trạng thái trong bộ nhớ giữa các request (rate limit, OAuth state, lịch chạy đều phải bền qua DB hoặc token có ký).
 
 ## Kiến trúc: Clean Architecture, 4 layer toàn cục + Composition Root
 

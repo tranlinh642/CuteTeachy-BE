@@ -8,7 +8,7 @@
 
 **Đọc:** SPEC-002 mục *Xác minh email & quên mật khẩu*, *API Contract* (các endpoint đánh dấu \*).
 
-**Vùng sở hữu:** feature `email-verification` và `password-reset`; port `Mailer` + adapter SMTP (Mailpit khi dev); mẫu email vi/en; nhánh `email_not_verified` trong use case đăng nhập (chỉnh nhỏ, có test).
+**Vùng sở hữu:** feature `email-verification` và `password-reset`; port `Mailer` + adapter SMTP (Mailpit khi dev, Gmail SMTP + App Password production — xem `docs/setup/external-services.md` §2; luôn `await` việc gửi vì chạy serverless); mẫu email vi/en; nhánh `email_not_verified` trong use case đăng nhập (chỉnh nhỏ, có test).
 
 - [ ] Đăng ký bằng mật khẩu → gửi mã xác minh (ngôn ngữ theo `Accept-Language`).
 - [ ] Mã 6 số, lưu hash, TTL 10 phút, tối đa 5 lần sai, gửi lại cách nhau ≥ 60 giây; vi phạm → `400 invalid_code` hoặc `429 rate_limited`.

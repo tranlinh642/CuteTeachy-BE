@@ -14,5 +14,5 @@
 - [ ] > 2 MB → `413 file_too_large`; kiểu khác jpeg/png/webp (kiểm magic bytes) → `415 unsupported_file_type`.
 - [ ] Object key ngẫu nhiên trong bucket `avatars`; ảnh cũ do hệ thống quản lý bị xoá sau khi ảnh mới lưu thành công; avatar Google (URL ngoài) không bị xoá trên storage.
 - [ ] `DELETE /auth/profile/avatar` → `200 User` không còn `avatarUrl`.
-- [ ] URL công khai dựng từ config (endpoint public của MinIO), không hard-code.
+- [ ] URL công khai dựng từ config (endpoint public của MinIO khi dev, của Cloudflare R2 production — xem `docs/setup/external-services.md` §3), không hard-code; cùng một adapter S3 chạy được với cả hai chỉ bằng đổi biến môi trường.
 - [ ] Unit test với fake `ObjectStorage`; e2e upload → GET URL công khai trả đúng ảnh, dùng MinIO từ compose.

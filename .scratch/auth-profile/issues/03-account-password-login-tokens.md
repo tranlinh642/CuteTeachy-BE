@@ -18,5 +18,5 @@
 - [ ] `POST /auth/logout` thu hồi refresh token gửi lên, trả 204 cả khi token không tồn tại.
 - [ ] `GET /auth/me` trả `User` đúng contract; thiếu/sai/hết hạn access token → `401 unauthorized`.
 - [ ] Guard JWT áp dụng mặc định cho mọi route; route public đánh dấu tường minh.
-- [ ] Rate limit theo IP cho `register`, `login`, `refresh` → `429 rate_limited`; ngưỡng nằm trong config.
+- [ ] Rate limit theo IP cho `register`, `login`, `refresh` → `429 rate_limited`; ngưỡng nằm trong config; **bộ đếm lưu trong Postgres** (serverless, ADR 0005) — có bảng cho việc này trong migration của ticket.
 - [ ] Unit test use case với fake port; e2e cho từng endpoint, gồm cả các nhánh lỗi kể trên.

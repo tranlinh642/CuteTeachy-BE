@@ -10,7 +10,7 @@
 
 **Vùng sở hữu:** feature `google-auth` ở mọi layer; port `GoogleOAuthClient` + adapter; controller cho `/auth/google`, `/auth/google/callback`, `/auth/google/exchange`. Dùng lại (không sửa) use case phát token của BE-03.
 
-- [ ] `GET /auth/google?remember=` → 302 tới Google với `state` chống CSRF mang theo `remember`.
+- [ ] `GET /auth/google?remember=` → 302 tới Google với `state` chống CSRF mang theo `remember`; `state` là token có ký và có hạn (không lưu trong bộ nhớ process — ADR 0005).
 - [ ] Callback kiểm `state`; lỗi bất kỳ (state sai, user huỷ, email chưa được Google xác minh) → 302 `${FE_URL}/auth/callback?error=google_failed`; không lộ chi tiết lỗi trên URL.
 - [ ] Callback thành công → 302 `${FE_URL}/auth/callback?code=<mã>`; mã ngẫu nhiên, lưu hash, TTL 60 giây, dùng một lần.
 - [ ] `POST /auth/google/exchange` → `200 AuthSession` (refresh TTL theo `remember` trong state); mã sai/hết hạn/đã dùng → `401 invalid_code`; có rate limit.

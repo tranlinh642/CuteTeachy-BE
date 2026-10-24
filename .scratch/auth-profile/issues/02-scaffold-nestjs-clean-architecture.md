@@ -19,5 +19,6 @@
 - [ ] CORS chỉ cho `FE_URL`.
 - [ ] `GET /health` trả 200 khi DB kết nối được, 503 khi không.
 - [ ] Test runner cho unit và e2e; một unit test mẫu với fake port, một e2e cho `/health` dùng Postgres từ compose.
-- [ ] Dockerfile multi-stage; `docker compose --profile app up` chạy được `api` và `/health` = 200.
+- [ ] Dockerfile multi-stage; `docker compose --profile app up` chạy được `api` và `/health` = 200 (chỉ dùng local).
+- [ ] Chạy được dạng serverless trên Vercel theo ADR 0005: entry point cho Vercel tái sử dụng instance Nest giữa các lần gọi trong cùng instance, cấu hình build Vercel nằm trong repo; Prisma dùng `DATABASE_URL` (pooler) và `directUrl = DIRECT_URL` cho migration. Kiểm chứng bằng `vercel dev` hoặc deploy preview nếu người dùng đã liên kết project, nếu chưa thì ghi rõ "chưa kiểm" trong báo cáo.
 - [ ] Ghi lệnh dev/build/type-check/lint/test/e2e/migrate vào `AGENTS.md` (thay `[CẦN BỔ SUNG …]`).
