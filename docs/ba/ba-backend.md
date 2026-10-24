@@ -18,7 +18,7 @@
 | Miền | Nội dung | Spec |
 | --- | --- | --- |
 | Auth & Profile | Account, Login Provider, token, Onboarding, Profile, Avatar | SPEC-002 |
-| Settings | `locale`, `timeZone`, `pushEnabled`, `reminderLeadMinutes` | SPEC-005 |
+| Settings | `locale`, `timeZone`, `pushEnabled`, `reminderLeadMinutes` | SPEC-003 (chuyển từ SPEC-005 vì `timeZone` cần trước Push) |
 | Tasks | Việc cần làm theo ngày, có/không có giờ | SPEC-003 |
 | Tags | Nhãn phân loại Task và Note | SPEC-003 |
 | Notes | Ghi chú + checklist | SPEC-003 |
@@ -63,7 +63,7 @@ erDiagram
 | G11 | Giới hạn: tiêu đề ≤ 120, ghi chú Task ≤ 1000, nội dung Note ≤ 5000, tên Tag ≤ 24, checklist/prep ≤ 100 mục, ≤ 10 tag mỗi Task/Note. Mỗi `tagId` phải thuộc chính giáo viên → nếu không: `400 validation`. |
 | G12 | Mỗi thay đổi gián tiếp (ví dụ xoá Tag gỡ khỏi Task) cũng cập nhật `updatedAt` của bản ghi bị ảnh hưởng để đồng bộ chênh lệch thấy được. |
 
-## 4. Settings *(SPEC-005)*
+## 4. Settings *(SPEC-003)*
 
 | Trường | Kiểu | Mặc định | Ghi chú |
 | --- | --- | --- | --- |
@@ -208,4 +208,4 @@ Xoá tài khoản & xuất dữ liệu · trang quản trị · chia sẻ giữa
 
 ## 14. Bước tiếp theo
 
-`/to-spec` cho SPEC-003 (Tasks + Tags + Notes + Inspiration + đồng bộ), SPEC-004 (Timetable), SPEC-005 (Settings + Push + Reminder); sau đó `/to-tickets` và điều phối như `CuteTeachy-FE/.scratch/auth-profile/ORCHESTRATION.md`.
+Đã tách thành spec (trong `CuteTeachy-FE/docs/specs/`): SPEC-003 (Tasks + Tags + Notes + Inspiration + Settings + đồng bộ), SPEC-004 (Timetable), SPEC-005 (Push + Reminder). Tiếp theo: `/to-tickets` cho từng spec và điều phối như `CuteTeachy-FE/.scratch/auth-profile/ORCHESTRATION.md`.
