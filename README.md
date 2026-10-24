@@ -34,3 +34,41 @@ Dựa trên PRD CuteTeachy, Backend cần phục vụ các domain dữ liệu ch
 
 ### 4. Người dùng & Cài đặt (User & Settings)
 - Hồ sơ giáo viên (Profile), cấu hình ca dạy và nhắc nhở.
+
+---
+
+## 🚀 Chạy hạ tầng dev (Local Development Infrastructure)
+
+Hạ tầng phát triển cục bộ được quản lý bằng Docker Compose, bao gồm:
+- **PostgreSQL 16**: Cổng `5432` (database: `cuteteachy`, user/password: `postgres`/`postgres`).
+- **MinIO (Object Storage chuẩn S3)**: Cổng API `9000`, Web Console `9001` (user/password: `minioadmin`/`minioadmin`). Bucket `avatars` được tự động tạo và phân quyền đọc công khai (anonymous download) qua service `minio-init`.
+- **Mailpit (SMTP mock & Web UI)**: Cổng SMTP `1025`, Web UI `8025` (truy cập `http://localhost:8025` để kiểm tra email gửi đi trong quá trình dev/test).
+
+### Khởi chạy hạ tầng
+
+1. Sao chép cấu hình môi trường từ mẫu:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Khởi động toàn bộ dịch vụ hạ tầng nền:
+   ```bash
+   docker compose up -d
+   ```
+
+3. Kiểm tra trạng thái:
+   ```bash
+   docker compose ps
+   ```
+   Các container `postgres`, `minio`, `mailpit` sẽ chuyển sang trạng thái `healthy`, service `minio-init` khởi tạo bucket và hoàn tất với mã 0 (`exited (0)`).
+
+### Dừng hạ tầng
+
+- Dừng dịch vụ:
+  ```bash
+  docker compose down
+  ```
+- Dừng và làm sạch dữ liệu volumes (reset DB và MinIO data):
+  ```bash
+  docker compose down -v
+  ```
