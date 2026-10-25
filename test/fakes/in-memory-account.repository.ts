@@ -24,6 +24,10 @@ export class InMemoryAccountRepository implements AccountRepository {
     this.passwordHashes.set(account.id, passwordHash);
   }
 
+  save(account: Account): void {
+    this.accounts.set(account.id, account);
+  }
+
   async getPasswordHash(accountId: string): Promise<string | null> {
     return this.passwordHashes.get(accountId) ?? null;
   }

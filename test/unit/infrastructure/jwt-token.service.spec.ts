@@ -15,6 +15,12 @@ describe('JwtTokenService', () => {
     REFRESH_TOKEN_TTL_SESSION: '1d',
     EMAIL_VERIFICATION_REQUIRED: false,
     CRON_SECRET: 'cron-secret',
+    S3_ENDPOINT: 'http://localhost:9000',
+    S3_REGION: 'us-east-1',
+    S3_ACCESS_KEY_ID: 'minioadmin',
+    S3_SECRET_ACCESS_KEY: 'minioadmin',
+    S3_BUCKET_AVATARS: 'avatars',
+    S3_PUBLIC_BASE_URL: 'http://localhost:9000/avatars',
   };
 
   const service = new JwtTokenService(mockConfig);
