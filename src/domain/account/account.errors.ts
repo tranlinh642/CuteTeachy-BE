@@ -39,3 +39,11 @@ export class RateLimitedError extends DomainError {
     super(message);
   }
 }
+
+export class OnboardingRequiredError extends DomainError {
+  readonly code = 'onboarding_required';
+
+  constructor(message = 'Onboarding required') {
+    super(message);
+  }
+}

@@ -10,24 +10,16 @@ import {
   REFRESH_TOKEN_REPOSITORY,
   RefreshTokenRepository,
 } from '../application/account/ports/refresh-token.repository.port';
-import {
-  PASSWORD_HASHER,
-  PasswordHasher,
-} from '../application/account/ports/password-hasher.port';
-import {
-  TOKEN_SERVICE,
-  TokenService,
-} from '../application/account/ports/token.service.port';
-import {
-  RATE_LIMITER,
-  RateLimiter,
-} from '../application/account/ports/rate-limiter.port';
+import { PASSWORD_HASHER, PasswordHasher } from '../application/account/ports/password-hasher.port';
+import { TOKEN_SERVICE, TokenService } from '../application/account/ports/token.service.port';
+import { RATE_LIMITER, RateLimiter } from '../application/account/ports/rate-limiter.port';
 
 import { RegisterUseCase } from '../application/account/register.use-case';
 import { LoginUseCase } from '../application/account/login.use-case';
 import { RefreshTokenUseCase } from '../application/account/refresh-token.use-case';
 import { LogoutUseCase } from '../application/account/logout.use-case';
 import { GetMeUseCase } from '../application/account/get-me.use-case';
+import { UpdateProfileUseCase } from '../application/account/update-profile.use-case';
 
 import { PrismaAccountRepository } from '../infrastructure/persistence/prisma/repositories/prisma-account.repository';
 import { PrismaRefreshTokenRepository } from '../infrastructure/persistence/prisma/repositories/prisma-refresh-token.repository';
@@ -37,6 +29,7 @@ import { PostgresRateLimiter } from '../infrastructure/auth/postgres-rate-limite
 
 import { AuthController } from '../presentation/http/account/auth.controller';
 import { JwtAuthGuard } from '../presentation/http/auth/jwt-auth.guard';
+import { OnboardingGuard } from '../presentation/http/auth/onboarding.guard';
 
 @Module({
   controllers: [AuthController],
@@ -64,6 +57,10 @@ import { JwtAuthGuard } from '../presentation/http/auth/jwt-auth.guard';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: OnboardingGuard,
     },
     {
       provide: RegisterUseCase,
@@ -166,6 +163,12 @@ import { JwtAuthGuard } from '../presentation/http/auth/jwt-auth.guard';
       useFactory: (accountRepo: AccountRepository) => new GetMeUseCase(accountRepo),
       inject: [ACCOUNT_REPOSITORY],
     },
+    {
+      provide: UpdateProfileUseCase,
+      useFactory: (accountRepo: AccountRepository, clock: Clock) =>
+        new UpdateProfileUseCase(accountRepo, clock),
+      inject: [ACCOUNT_REPOSITORY, CLOCK],
+    },
   ],
   exports: [
     ACCOUNT_REPOSITORY,
@@ -178,6 +181,7 @@ import { JwtAuthGuard } from '../presentation/http/auth/jwt-auth.guard';
     RefreshTokenUseCase,
     LogoutUseCase,
     GetMeUseCase,
+    UpdateProfileUseCase,
   ],
 })
 export class AccountModule {}

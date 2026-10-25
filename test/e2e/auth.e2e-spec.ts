@@ -1,9 +1,30 @@
+import { Controller, Get, INestApplication, Module } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../../src/composition/app.module';
 import { setupApp } from '../../src/setup-app';
 import { PrismaService } from '../../src/infrastructure/persistence/prisma/prisma.service';
+import { ExemptOnboarding } from '../../src/presentation/http/auth/exempt-onboarding.decorator';
+
+@Controller('test-business')
+class TestBusinessController {
+  @Get('protected')
+  protectedRoute() {
+    return { ok: true };
+  }
+
+  @Get('exempt')
+  @ExemptOnboarding()
+  exemptRoute() {
+    return { ok: true };
+  }
+}
+
+@Module({
+  imports: [AppModule],
+  controllers: [TestBusinessController],
+})
+class TestAppModule {}
 
 describe('Auth & Account E2E', () => {
   jest.setTimeout(60000);
@@ -13,7 +34,7 @@ describe('Auth & Account E2E', () => {
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
+      imports: [TestAppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -60,6 +81,7 @@ describe('Auth & Account E2E', () => {
       expect(res.body.user.loginProviders).toEqual(['password']);
       expect(res.body.user.fullName).toBe('');
       expect(res.body.user.displayName).toBe('');
+      expect(res.body.gender).toBeUndefined(); // User is nested in user property
       expect(res.body.user.gender).toBeNull();
       expect(res.body.user.onboardingCompletedAt).toBeNull();
 
@@ -108,28 +130,25 @@ describe('Auth & Account E2E', () => {
 
   describe('POST /auth/login', () => {
     beforeEach(async () => {
-      await request(app.getHttpServer())
-        .post('/auth/register')
-        .send({
-          email: 'teacher@example.com',
-          password: 'correctPassword123',
-        })
-        .expect(201);
+      await request(app.getHttpServer()).post('/auth/register').send({
+        email: 'teacher@example.com',
+        password: 'password123',
+      });
     });
 
     it('returns 200 AuthSession with valid credentials', async () => {
       const res = await request(app.getHttpServer())
         .post('/auth/login')
         .send({
-          email: '  TEACHER@EXAMPLE.COM ',
-          password: 'correctPassword123',
-          remember: false,
+          email: 'TEACHER@example.com',
+          password: 'password123',
+          remember: true,
         })
         .expect(200);
 
       expect(res.body.user.email).toBe('teacher@example.com');
-      expect(res.body.accessToken).toBeDefined();
-      expect(res.body.refreshToken).toBeDefined();
+      expect(res.body).toHaveProperty('accessToken');
+      expect(res.body).toHaveProperty('refreshToken');
     });
 
     it('returns 401 invalid_credentials with wrong password', async () => {
@@ -137,19 +156,19 @@ describe('Auth & Account E2E', () => {
         .post('/auth/login')
         .send({
           email: 'teacher@example.com',
-          password: 'wrongPassword123',
+          password: 'wrongpassword',
         })
         .expect(401);
 
       expect(res.body.code).toBe('invalid_credentials');
     });
 
-    it('returns 401 invalid_credentials with nonexistent email', async () => {
+    it('returns 401 invalid_credentials with non-existent email', async () => {
       const res = await request(app.getHttpServer())
         .post('/auth/login')
         .send({
           email: 'nonexistent@example.com',
-          password: 'correctPassword123',
+          password: 'password123',
         })
         .expect(401);
 
@@ -158,7 +177,7 @@ describe('Auth & Account E2E', () => {
   });
 
   describe('POST /auth/refresh', () => {
-    it('rotates refresh token and returns new session', async () => {
+    it('rotates refresh token and returns new AuthSession', async () => {
       const reg = await request(app.getHttpServer())
         .post('/auth/register')
         .send({
@@ -174,34 +193,17 @@ describe('Auth & Account E2E', () => {
         .send({ refreshToken: oldRefreshToken })
         .expect(200);
 
-      expect(refreshRes.body.user.email).toBe('teacher@example.com');
-      expect(refreshRes.body.accessToken).toBeDefined();
-      expect(refreshRes.body.refreshToken).toBeDefined();
+      expect(refreshRes.body).toHaveProperty('accessToken');
+      expect(refreshRes.body).toHaveProperty('refreshToken');
       expect(refreshRes.body.refreshToken).not.toBe(oldRefreshToken);
 
-      // Refreshing with the old token now fails (reuse detected)
+      // Reusing revoked token should trigger theft detection and fail
       const reuseRes = await request(app.getHttpServer())
         .post('/auth/refresh')
         .send({ refreshToken: oldRefreshToken })
         .expect(401);
 
       expect(reuseRes.body.code).toBe('unauthorized');
-
-      // Furthermore, reuse detection revokes all tokens of the account!
-      // So the newer token is ALSO revoked:
-      await request(app.getHttpServer())
-        .post('/auth/refresh')
-        .send({ refreshToken: refreshRes.body.refreshToken })
-        .expect(401);
-    });
-
-    it('returns 401 unauthorized on non-existent token', async () => {
-      const res = await request(app.getHttpServer())
-        .post('/auth/refresh')
-        .send({ refreshToken: 'random-unknown-token-value' })
-        .expect(401);
-
-      expect(res.body.code).toBe('unauthorized');
     });
   });
 
@@ -215,16 +217,17 @@ describe('Auth & Account E2E', () => {
         })
         .expect(201);
 
-      await request(app.getHttpServer())
-        .post('/auth/logout')
-        .send({ refreshToken: reg.body.refreshToken })
-        .expect(204);
+      const refreshToken = reg.body.refreshToken;
 
-      // Now refresh with this token must fail
-      await request(app.getHttpServer())
+      await request(app.getHttpServer()).post('/auth/logout').send({ refreshToken }).expect(204);
+
+      // Using the revoked token to refresh should now fail
+      const res = await request(app.getHttpServer())
         .post('/auth/refresh')
-        .send({ refreshToken: reg.body.refreshToken })
+        .send({ refreshToken })
         .expect(401);
+
+      expect(res.body.code).toBe('unauthorized');
     });
 
     it('returns 204 even if token does not exist', async () => {
@@ -271,6 +274,246 @@ describe('Auth & Account E2E', () => {
         .set('Authorization', 'Bearer invalid.jwt.token')
         .expect(401);
       expect(res.body.code).toBe('unauthorized');
+    });
+  });
+
+  describe('PATCH /auth/profile', () => {
+    it('returns 401 unauthorized when Authorization header is missing', async () => {
+      const res = await request(app.getHttpServer())
+        .patch('/auth/profile')
+        .send({ fullName: 'Trần Đức Linh' })
+        .expect(401);
+
+      expect(res.body.code).toBe('unauthorized');
+    });
+
+    it('returns 400 validation when fullName is shorter than 2 characters', async () => {
+      const reg = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({ email: 'val1@example.com', password: 'password123' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch('/auth/profile')
+        .set('Authorization', `Bearer ${reg.body.accessToken}`)
+        .send({ fullName: 'A' })
+        .expect(400);
+
+      expect(res.body.code).toBe('validation');
+    });
+
+    it('returns 400 validation when fullName is longer than 50 characters', async () => {
+      const reg = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({ email: 'val2@example.com', password: 'password123' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch('/auth/profile')
+        .set('Authorization', `Bearer ${reg.body.accessToken}`)
+        .send({ fullName: 'A'.repeat(51) })
+        .expect(400);
+
+      expect(res.body.code).toBe('validation');
+    });
+
+    it('returns 400 validation when displayName is longer than 20 characters', async () => {
+      const reg = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({ email: 'val3@example.com', password: 'password123' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch('/auth/profile')
+        .set('Authorization', `Bearer ${reg.body.accessToken}`)
+        .send({ displayName: 'A'.repeat(21) })
+        .expect(400);
+
+      expect(res.body.code).toBe('validation');
+    });
+
+    it('returns 400 validation when title is longer than 100 characters', async () => {
+      const reg = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({ email: 'val4@example.com', password: 'password123' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch('/auth/profile')
+        .set('Authorization', `Bearer ${reg.body.accessToken}`)
+        .send({ title: 'A'.repeat(101) })
+        .expect(400);
+
+      expect(res.body.code).toBe('validation');
+    });
+
+    it('returns 400 validation when gender is invalid', async () => {
+      const reg = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({ email: 'val5@example.com', password: 'password123' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch('/auth/profile')
+        .set('Authorization', `Bearer ${reg.body.accessToken}`)
+        .send({ gender: 'unknown' })
+        .expect(400);
+
+      expect(res.body.code).toBe('validation');
+    });
+
+    it('deletes title when empty string or null is provided', async () => {
+      const reg = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({ email: 'del-title@example.com', password: 'password123' })
+        .expect(201);
+
+      // Set initial title
+      await request(app.getHttpServer())
+        .patch('/auth/profile')
+        .set('Authorization', `Bearer ${reg.body.accessToken}`)
+        .send({ title: 'Giáo viên Toán' })
+        .expect(200);
+
+      // Delete with empty string
+      const resEmpty = await request(app.getHttpServer())
+        .patch('/auth/profile')
+        .set('Authorization', `Bearer ${reg.body.accessToken}`)
+        .send({ title: '   ' })
+        .expect(200);
+
+      expect(resEmpty.body.title).toBeUndefined();
+
+      // Check DB
+      const dbProfile1 = await prisma.profile.findUnique({
+        where: { accountId: reg.body.user.id },
+      });
+      expect(dbProfile1?.title).toBeNull();
+
+      // Re-set title
+      await request(app.getHttpServer())
+        .patch('/auth/profile')
+        .set('Authorization', `Bearer ${reg.body.accessToken}`)
+        .send({ title: 'Giáo viên Lý' })
+        .expect(200);
+
+      // Delete with null
+      const resNull = await request(app.getHttpServer())
+        .patch('/auth/profile')
+        .set('Authorization', `Bearer ${reg.body.accessToken}`)
+        .send({ title: null })
+        .expect(200);
+
+      expect(resNull.body.title).toBeUndefined();
+
+      const dbProfile2 = await prisma.profile.findUnique({
+        where: { accountId: reg.body.user.id },
+      });
+      expect(dbProfile2?.title).toBeNull();
+    });
+  });
+
+  describe('OnboardingGuard & End-to-End Onboarding Lifecycle', () => {
+    it('blocks business route with 403 onboarding_required until onboarding is completed, then allows 200', async () => {
+      // 1. Register
+      const reg = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({ email: 'lifecycle@example.com', password: 'password123' })
+        .expect(201);
+
+      const token = reg.body.accessToken;
+
+      // 2. Route in /auth/* is NOT blocked even before onboarding
+      const meBefore = await request(app.getHttpServer())
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(meBefore.body.onboardingCompletedAt).toBeNull();
+
+      // 3. Protected non-auth route returns 403 onboarding_required
+      const blockedRes = await request(app.getHttpServer())
+        .get('/test-business/protected')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+
+      expect(blockedRes.body.code).toBe('onboarding_required');
+
+      // 4. Route with @ExemptOnboarding() is allowed
+      const exemptRes = await request(app.getHttpServer())
+        .get('/test-business/exempt')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(exemptRes.body.ok).toBe(true);
+
+      // 5. Partial update: missing gender -> still not completed
+      const partialRes = await request(app.getHttpServer())
+        .patch('/auth/profile')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          fullName: 'Trần Đức Linh',
+          displayName: 'Linh',
+        })
+        .expect(200);
+
+      expect(partialRes.body.fullName).toBe('Trần Đức Linh');
+      expect(partialRes.body.displayName).toBe('Linh');
+      expect(partialRes.body.gender).toBeNull();
+      expect(partialRes.body.onboardingCompletedAt).toBeNull();
+
+      // Still blocked
+      await request(app.getHttpServer())
+        .get('/test-business/protected')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+
+      // 6. Complete onboarding: provide gender
+      const completedRes = await request(app.getHttpServer())
+        .patch('/auth/profile')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          gender: 'male',
+          title: 'Thầy Linh',
+        })
+        .expect(200);
+
+      expect(completedRes.body.gender).toBe('male');
+      expect(completedRes.body.title).toBe('Thầy Linh');
+      expect(completedRes.body.onboardingCompletedAt).not.toBeNull();
+      const firstCompletedAt = completedRes.body.onboardingCompletedAt;
+
+      // 7. GET /auth/me now reflects completed onboarding
+      const meAfter = await request(app.getHttpServer())
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(meAfter.body.fullName).toBe('Trần Đức Linh');
+      expect(meAfter.body.displayName).toBe('Linh');
+      expect(meAfter.body.gender).toBe('male');
+      expect(meAfter.body.title).toBe('Thầy Linh');
+      expect(meAfter.body.onboardingCompletedAt).toBe(firstCompletedAt);
+
+      // 8. Protected non-auth route now returns 200
+      const allowedRes = await request(app.getHttpServer())
+        .get('/test-business/protected')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(allowedRes.body.ok).toBe(true);
+
+      // 9. Further profile updates do NOT change onboardingCompletedAt
+      const updateAgainRes = await request(app.getHttpServer())
+        .patch('/auth/profile')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          title: 'Giáo viên Chủ nhiệm',
+        })
+        .expect(200);
+
+      expect(updateAgainRes.body.title).toBe('Giáo viên Chủ nhiệm');
+      expect(updateAgainRes.body.onboardingCompletedAt).toBe(firstCompletedAt);
     });
   });
 

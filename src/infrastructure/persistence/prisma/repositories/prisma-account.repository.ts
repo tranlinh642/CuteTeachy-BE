@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AccountRepository } from '../../../../application/account/ports/account.repository.port';
 import { Account } from '../../../../domain/account/account.entity';
+import { Profile } from '../../../../domain/account/profile.entity';
 import { PrismaService } from '../prisma.service';
 import { AccountMapper } from '../mappers/account.mapper';
 
@@ -89,5 +90,21 @@ export class PrismaAccountRepository implements AccountRepository {
     });
 
     return provider?.passwordHash ?? null;
+  }
+
+  async updateProfile(profile: Profile): Promise<void> {
+    await this.prisma.profile.update({
+      where: { accountId: profile.accountId },
+      data: {
+        fullName: profile.fullName,
+        displayName: profile.displayName,
+        title: profile.title ?? null,
+        gender: profile.gender,
+        avatarUrl: profile.avatarUrl ?? null,
+        avatarKey: profile.avatarKey ?? null,
+        onboardingCompletedAt: profile.onboardingCompletedAt,
+        updatedAt: profile.updatedAt,
+      },
+    });
   }
 }
