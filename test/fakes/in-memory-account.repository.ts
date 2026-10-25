@@ -1,4 +1,5 @@
 import { Account } from '../../src/domain/account/account.entity';
+import { Profile } from '../../src/domain/account/profile.entity';
 import { AccountRepository } from '../../src/application/account/ports/account.repository.port';
 
 export class InMemoryAccountRepository implements AccountRepository {
@@ -26,5 +27,21 @@ export class InMemoryAccountRepository implements AccountRepository {
 
   async getPasswordHash(accountId: string): Promise<string | null> {
     return this.passwordHashes.get(accountId) ?? null;
+  }
+
+  async updateProfile(profile: Profile): Promise<void> {
+    const existing = this.accounts.get(profile.accountId);
+    if (existing) {
+      const updatedAccount = Account.reconstitute({
+        id: existing.id,
+        email: existing.email,
+        emailVerifiedAt: existing.emailVerifiedAt,
+        loginProviders: existing.loginProviders,
+        profile,
+        createdAt: existing.createdAt,
+        updatedAt: existing.updatedAt,
+      });
+      this.accounts.set(profile.accountId, updatedAccount);
+    }
   }
 }
