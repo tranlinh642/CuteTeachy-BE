@@ -72,6 +72,51 @@ describe('Account Domain', () => {
       expect(account.profile.title).toBeUndefined();
       expect(account.profile.avatarUrl).toBeUndefined();
     });
+
+    it('creates a new account with google registration defaults', () => {
+      const email = Email.create('teacher.google@example.com');
+      const now = new Date('2026-10-25T10:00:00Z');
+      const account = Account.registerWithGoogle({
+        id: 'acc-google-1',
+        email,
+        profileId: 'prof-google-1',
+        fullName: 'Cute Teacher',
+        displayName: 'Teacher Cute',
+        avatarUrl: 'https://lh3.googleusercontent.com/avatar.jpg',
+        now,
+      });
+
+      expect(account.id).toBe('acc-google-1');
+      expect(account.email).toBe('teacher.google@example.com');
+      expect(account.emailVerifiedAt).toEqual(now);
+      expect(account.loginProviders).toEqual(['google']);
+      expect(account.hasLoginProvider('google')).toBe(true);
+      expect(account.profile.fullName).toBe('Cute Teacher');
+      expect(account.profile.displayName).toBe('Teacher Cute');
+      expect(account.profile.avatarUrl).toBe('https://lh3.googleusercontent.com/avatar.jpg');
+      expect(account.profile.gender).toBeNull();
+      expect(account.profile.onboardingCompletedAt).toBeNull();
+    });
+
+    it('links google provider to existing account idempotently', () => {
+      const email = Email.create('teacher@example.com');
+      const account = Account.registerWithPassword({
+        id: 'acc-123',
+        email,
+        profileId: 'prof-123',
+      });
+
+      expect(account.hasLoginProvider('password')).toBe(true);
+      expect(account.hasLoginProvider('google')).toBe(false);
+
+      account.linkGoogle();
+      expect(account.hasLoginProvider('google')).toBe(true);
+      expect(account.loginProviders).toContain('password');
+      expect(account.loginProviders).toContain('google');
+
+      // Idempotency
+      account.linkGoogle();
+      expect(account.loginProviders.filter((p: string) => p === 'google')).toHaveLength(1);
+    });
   });
 });
-
