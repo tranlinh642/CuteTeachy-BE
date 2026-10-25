@@ -2,7 +2,7 @@ import { HttpStatus } from '@nestjs/common';
 
 export const DOMAIN_ERROR_STATUS_MAP: Record<string, HttpStatus> = {
   validation: HttpStatus.BAD_REQUEST, // 400
-  invalid_code: HttpStatus.BAD_REQUEST, // 400
+  invalid_code: HttpStatus.UNAUTHORIZED, // 401
   invalid_credentials: HttpStatus.UNAUTHORIZED, // 401
   unauthorized: HttpStatus.UNAUTHORIZED, // 401
   forbidden: HttpStatus.FORBIDDEN, // 403

@@ -55,6 +55,17 @@ describe('GlobalExceptionFilter', () => {
     });
   });
 
+  it('maps DomainError with code "invalid_code" to HTTP 401', () => {
+    const error = new TestDomainError('invalid_code', 'Invalid, expired, or already used exchange code');
+    filter.catch(error, mockHost);
+
+    expect(mockStatus).toHaveBeenCalledWith(HttpStatus.UNAUTHORIZED);
+    expect(mockJson).toHaveBeenCalledWith({
+      code: 'invalid_code',
+      message: 'Invalid, expired, or already used exchange code',
+    });
+  });
+
   it('maps validation BadRequestException to 400 with code "validation"', () => {
     const error = new HttpException(
       { code: 'validation', message: 'Name must not be empty' },

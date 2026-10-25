@@ -61,6 +61,7 @@ describe('RefreshTokenUseCase', () => {
       tokenHash: hash,
       familyId: 'family-1',
       expiresAt,
+      createdAt: initialDate,
     });
 
     const session = await useCase.execute({
@@ -85,6 +86,69 @@ describe('RefreshTokenUseCase', () => {
     expect(newRecord?.revokedAt).toBeNull();
   });
 
+  it('preserves 30-day TTL when rotating a remember token (SPEC-01)', async () => {
+    const rawToken = 'remember_token_1';
+    const hash = tokenService.hashRefreshToken(rawToken);
+    const thirtyDaysMs = 30 * 86400000;
+    const expiresAt = new Date(initialDate.getTime() + thirtyDaysMs);
+
+    await refreshTokenRepo.save({
+      id: 'tok-remember',
+      accountId: 'acc-1',
+      tokenHash: hash,
+      familyId: 'family-remember',
+      expiresAt,
+      createdAt: initialDate,
+    });
+
+    const session = await useCase.execute({
+      refreshToken: rawToken,
+      ip: '127.0.0.1',
+    });
+
+    expect(session.user.id).toBe('acc-1');
+    expect(session.refreshToken).toBeDefined();
+
+    const allTokens = refreshTokenRepo.getAllTokens();
+    const newRecord = allTokens.find((t) => t.id !== 'tok-remember');
+    expect(newRecord).toBeDefined();
+    expect(newRecord?.familyId).toBe('family-remember');
+
+    // In FakeTokenService, remember=true produces 30 days TTL (Date.now() + 30 days)
+    // Verify that the new token has ~30 days TTL (> 29 days) and NOT downgraded to 1 day
+    const newTtlMs = newRecord!.expiresAt.getTime() - Date.now();
+    expect(newTtlMs).toBeGreaterThan(29 * 86400000);
+  });
+
+  it('preserves 1-day TTL when rotating a non-remember session token', async () => {
+    const rawToken = 'session_token_1';
+    const hash = tokenService.hashRefreshToken(rawToken);
+    const oneDayMs = 86400000;
+    const expiresAt = new Date(initialDate.getTime() + oneDayMs);
+
+    await refreshTokenRepo.save({
+      id: 'tok-session',
+      accountId: 'acc-1',
+      tokenHash: hash,
+      familyId: 'family-session',
+      expiresAt,
+      createdAt: initialDate,
+    });
+
+    await useCase.execute({
+      refreshToken: rawToken,
+      ip: '127.0.0.1',
+    });
+
+    const allTokens = refreshTokenRepo.getAllTokens();
+    const newRecord = allTokens.find((t) => t.id !== 'tok-session');
+    expect(newRecord).toBeDefined();
+
+    // Verify that the new token has <= 1 day TTL
+    const newTtlMs = newRecord!.expiresAt.getTime() - Date.now();
+    expect(newTtlMs).toBeLessThanOrEqual(86400000);
+  });
+
   it('detects reuse of revoked token and revokes ALL tokens of the account', async () => {
     const rawToken1 = 'token_revoked_1';
     const hash1 = tokenService.hashRefreshToken(rawToken1);
@@ -99,6 +163,7 @@ describe('RefreshTokenUseCase', () => {
       tokenHash: hash1,
       familyId: 'family-1',
       expiresAt: new Date(initialDate.getTime() + 86400000),
+      createdAt: initialDate,
     });
     await refreshTokenRepo.revoke('tok-1', initialDate);
 
@@ -109,6 +174,7 @@ describe('RefreshTokenUseCase', () => {
       tokenHash: hash2,
       familyId: 'family-1',
       expiresAt: new Date(initialDate.getTime() + 86400000),
+      createdAt: initialDate,
     });
 
     // Attempt to reuse revoked token 1
@@ -135,6 +201,7 @@ describe('RefreshTokenUseCase', () => {
       tokenHash: hash,
       familyId: 'family-exp',
       expiresAt: expiredDate,
+      createdAt: initialDate,
     });
 
     await expect(

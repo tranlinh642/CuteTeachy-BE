@@ -74,7 +74,7 @@ export class UpdateProfileRequestDto {
   @ValidateIf((_, val) => val !== null && val !== undefined)
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString({ message: 'title must be a string' })
-  @MaxLength(100, { message: 'title must be at most 100 characters long' })
+  @MaxLength(50, { message: 'title must be at most 50 characters long' })
   title?: string | null;
 
   @IsOptional()

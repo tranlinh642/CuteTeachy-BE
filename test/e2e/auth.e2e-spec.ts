@@ -332,7 +332,7 @@ describe('Auth & Account E2E', () => {
       expect(res.body.code).toBe('validation');
     });
 
-    it('returns 400 validation when title is longer than 100 characters', async () => {
+    it('returns 400 validation when title is longer than 50 characters', async () => {
       const reg = await request(app.getHttpServer())
         .post('/auth/register')
         .send({ email: 'val4@example.com', password: 'password123' })
@@ -341,7 +341,7 @@ describe('Auth & Account E2E', () => {
       const res = await request(app.getHttpServer())
         .patch('/auth/profile')
         .set('Authorization', `Bearer ${reg.body.accessToken}`)
-        .send({ title: 'A'.repeat(101) })
+        .send({ title: 'A'.repeat(51) })
         .expect(400);
 
       expect(res.body.code).toBe('validation');

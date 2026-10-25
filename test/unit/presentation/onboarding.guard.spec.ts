@@ -1,6 +1,7 @@
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { OnboardingGuard } from '../../../src/presentation/http/auth/onboarding.guard';
+import { GetMeUseCase } from '../../../src/application/account/get-me.use-case';
 import { IS_EXEMPT_ONBOARDING_KEY } from '../../../src/presentation/http/auth/exempt-onboarding.decorator';
 import { IS_PUBLIC_KEY } from '../../../src/presentation/http/auth/public.decorator';
 import { InMemoryAccountRepository } from '../../fakes/in-memory-account.repository';
@@ -45,9 +46,11 @@ function createMockContext(options: {
 
 describe('OnboardingGuard', () => {
   let accountRepo: InMemoryAccountRepository;
+  let getMeUseCase: GetMeUseCase;
 
   beforeEach(() => {
     accountRepo = new InMemoryAccountRepository();
+    getMeUseCase = new GetMeUseCase(accountRepo);
   });
 
   it('allows request when route has @Public() metadata', async () => {
@@ -55,7 +58,7 @@ describe('OnboardingGuard', () => {
       isPublic: true,
       path: '/health',
     });
-    const guard = new OnboardingGuard(reflector, accountRepo);
+    const guard = new OnboardingGuard(reflector, getMeUseCase);
 
     const result = await guard.canActivate(context);
     expect(result).toBe(true);
@@ -67,7 +70,7 @@ describe('OnboardingGuard', () => {
       path: '/exempt-route',
       user: { sub: 'acc-uncompleted' },
     });
-    const guard = new OnboardingGuard(reflector, accountRepo);
+    const guard = new OnboardingGuard(reflector, getMeUseCase);
 
     const result = await guard.canActivate(context);
     expect(result).toBe(true);
@@ -78,7 +81,7 @@ describe('OnboardingGuard', () => {
       path: '/auth/me',
       user: { sub: 'acc-uncompleted' },
     });
-    const guard = new OnboardingGuard(reflector, accountRepo);
+    const guard = new OnboardingGuard(reflector, getMeUseCase);
 
     const result = await guard.canActivate(context);
     expect(result).toBe(true);
@@ -88,7 +91,7 @@ describe('OnboardingGuard', () => {
     const { context, reflector } = createMockContext({
       path: '/tasks',
     });
-    const guard = new OnboardingGuard(reflector, accountRepo);
+    const guard = new OnboardingGuard(reflector, getMeUseCase);
 
     await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedError);
   });
@@ -98,7 +101,7 @@ describe('OnboardingGuard', () => {
       path: '/tasks',
       user: { sub: 'non-existent' },
     });
-    const guard = new OnboardingGuard(reflector, accountRepo);
+    const guard = new OnboardingGuard(reflector, getMeUseCase);
 
     await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedError);
   });
@@ -115,7 +118,7 @@ describe('OnboardingGuard', () => {
       path: '/tasks',
       user: { sub: 'acc-1' },
     });
-    const guard = new OnboardingGuard(reflector, accountRepo);
+    const guard = new OnboardingGuard(reflector, getMeUseCase);
 
     await expect(guard.canActivate(context)).rejects.toThrow(OnboardingRequiredError);
     try {
@@ -142,7 +145,7 @@ describe('OnboardingGuard', () => {
       path: '/tasks',
       user: { sub: 'acc-2' },
     });
-    const guard = new OnboardingGuard(reflector, accountRepo);
+    const guard = new OnboardingGuard(reflector, getMeUseCase);
 
     const result = await guard.canActivate(context);
     expect(result).toBe(true);

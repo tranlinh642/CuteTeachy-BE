@@ -12,6 +12,8 @@ export interface RefreshTokenInput {
   ip: string;
 }
 
+const ONE_DAY_MS = 86_400_000;
+
 export class RefreshTokenUseCase {
   constructor(
     private readonly accountRepository: AccountRepository,
@@ -63,11 +65,15 @@ export class RefreshTokenUseCase {
       throw new UnauthorizedError('Account not found');
     }
 
+    // Determine whether the existing token was a "remember" token (> 1 day TTL)
+    const isRemember =
+      record.expiresAt.getTime() - record.createdAt.getTime() > ONE_DAY_MS;
+
     // Revoke old token
     await this.refreshTokenRepository.revoke(record.id, now);
 
-    // Issue rotated token with same familyId
-    const newRefresh = await this.tokenService.createRefreshToken();
+    // Issue rotated token with same familyId and preserved remember flag
+    const newRefresh = await this.tokenService.createRefreshToken(isRemember);
     const newAccess = await this.tokenService.createAccessToken({ sub: account.id });
     const newTokenId = this.idGenerator.next();
 
@@ -77,6 +83,7 @@ export class RefreshTokenUseCase {
       tokenHash: newRefresh.tokenHash,
       familyId: record.familyId,
       expiresAt: newRefresh.expiresAt,
+      createdAt: now,
     });
 
     return {

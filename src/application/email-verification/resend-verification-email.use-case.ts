@@ -27,7 +27,7 @@ export class ResendVerificationEmailUseCase {
     private readonly rateLimiter: RateLimiter,
     private readonly idGenerator: IdGenerator,
     private readonly clock: Clock,
-    private readonly codeGenerator?: CodeGenerator,
+    private readonly codeGenerator: CodeGenerator,
     private readonly rateLimitMax = 10,
     private readonly rateLimitWindowSeconds = 60,
   ) {}
@@ -67,9 +67,7 @@ export class ResendVerificationEmailUseCase {
       return;
     }
 
-    const code =
-      this.codeGenerator?.generate() ??
-      Math.floor(100000 + Math.random() * 900000).toString();
+    const code = this.codeGenerator.generate();
     const codeHash = this.codeHasher.hash(code);
     const verificationCodeId = this.idGenerator.next();
     const expiresAt = new Date(now.getTime() + 10 * 60 * 1000); // 10 minutes TTL

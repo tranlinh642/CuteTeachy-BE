@@ -15,6 +15,7 @@ export class PrismaRefreshTokenRepository implements RefreshTokenRepository {
     tokenHash: string;
     familyId: string;
     expiresAt: Date;
+    createdAt?: Date;
   }): Promise<void> {
     await this.prisma.refreshToken.create({
       data: {
@@ -23,6 +24,7 @@ export class PrismaRefreshTokenRepository implements RefreshTokenRepository {
         tokenHash: record.tokenHash,
         familyId: record.familyId,
         expiresAt: record.expiresAt,
+        ...(record.createdAt ? { createdAt: record.createdAt } : {}),
       },
     });
   }
