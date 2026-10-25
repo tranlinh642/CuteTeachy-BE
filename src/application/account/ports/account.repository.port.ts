@@ -1,0 +1,10 @@
+import { Account } from '../../../domain/account/account.entity';
+
+export const ACCOUNT_REPOSITORY = Symbol('ACCOUNT_REPOSITORY');
+
+export interface AccountRepository {
+  findByEmail(email: string): Promise<Account | null>;
+  findById(id: string): Promise<Account | null>;
+  createWithPassword(account: Account, passwordHash: string): Promise<void>;
+  getPasswordHash(accountId: string): Promise<string | null>;
+}

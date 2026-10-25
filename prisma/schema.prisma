@@ -7,3 +7,121 @@ datasource db {
 generator client {
   provider = "prisma-client-js"
 }
+
+enum Gender {
+  female
+  male
+  other
+}
+
+model Account {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  emailVerifiedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  loginProviders    LoginProvider[]
+  profile           Profile?
+  refreshTokens     RefreshToken[]
+  exchangeCodes     OneTimeExchangeCode[]
+  verificationCodes VerificationCode[]
+
+  @@map("accounts")
+}
+
+model LoginProvider {
+  id           String   @id @default(uuid())
+  accountId    String
+  provider     String   // "password" | "google"
+  passwordHash String?
+  subject      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, provider])
+  @@index([provider, subject])
+  @@map("login_providers")
+}
+
+model Profile {
+  id                    String    @id @default(uuid())
+  accountId             String    @unique
+  fullName              String    @default("")
+  displayName           String    @default("")
+  title                 String?
+  gender                Gender?
+  avatarUrl             String?
+  avatarKey             String?
+  onboardingCompletedAt DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  account               Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  accountId String
+  tokenHash String    @unique
+  familyId  String
+  revokedAt DateTime?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+model OneTimeExchangeCode {
+  id        String    @id @default(uuid())
+  accountId String
+  codeHash  String    @unique
+  remember  Boolean   @default(false)
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@map("one_time_exchange_codes")
+}
+
+model VerificationCode {
+  id          String    @id @default(uuid())
+  email       String
+  accountId   String?
+  purpose     String    // "email_verification" | "password_reset"
+  codeHash    String
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  usedAt      DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  account     Account?  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([email, purpose])
+  @@map("verification_codes")
+}
+
+model RateLimitCounter {
+  key       String   @id
+  count     Int      @default(1)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
+  @@map("rate_limit_counters")
+}
