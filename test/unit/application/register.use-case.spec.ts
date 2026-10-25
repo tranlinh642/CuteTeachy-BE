@@ -1,11 +1,15 @@
 import { RegisterUseCase } from '../../../src/application/account/register.use-case';
 import { InMemoryAccountRepository } from '../../fakes/in-memory-account.repository';
 import { InMemoryRefreshTokenRepository } from '../../fakes/in-memory-refresh-token.repository';
+import { InMemoryVerificationCodeRepository } from '../../fakes/in-memory-verification-code.repository';
 import { FakePasswordHasher } from '../../fakes/fake-password-hasher';
 import { FakeTokenService } from '../../fakes/fake-token.service';
 import { FakeRateLimiter } from '../../fakes/fake-rate-limiter';
+import { FakeMailer } from '../../fakes/fake-mailer';
+import { FakeCodeGenerator } from '../../fakes/fake-code-generator';
 import { SequentialIdGenerator } from '../../fakes/sequential-id-generator';
 import { FixedClock } from '../../fakes/fixed-clock';
+import { Sha256CodeHasher } from '../../../src/infrastructure/google-auth/sha256-code-hasher';
 import {
   AccountValidationError,
   EmailTakenError,
@@ -15,9 +19,13 @@ import {
 describe('RegisterUseCase', () => {
   let accountRepo: InMemoryAccountRepository;
   let refreshTokenRepo: InMemoryRefreshTokenRepository;
+  let verificationCodeRepo: InMemoryVerificationCodeRepository;
   let passwordHasher: FakePasswordHasher;
   let tokenService: FakeTokenService;
   let rateLimiter: FakeRateLimiter;
+  let mailer: FakeMailer;
+  let codeGenerator: FakeCodeGenerator;
+  let codeHasher: Sha256CodeHasher;
   let idGenerator: SequentialIdGenerator;
   let clock: FixedClock;
   let useCase: RegisterUseCase;
@@ -25,9 +33,13 @@ describe('RegisterUseCase', () => {
   beforeEach(() => {
     accountRepo = new InMemoryAccountRepository();
     refreshTokenRepo = new InMemoryRefreshTokenRepository();
+    verificationCodeRepo = new InMemoryVerificationCodeRepository();
     passwordHasher = new FakePasswordHasher();
     tokenService = new FakeTokenService();
     rateLimiter = new FakeRateLimiter();
+    mailer = new FakeMailer();
+    codeGenerator = new FakeCodeGenerator('654321');
+    codeHasher = new Sha256CodeHasher();
     idGenerator = new SequentialIdGenerator('id');
     clock = new FixedClock(new Date('2026-10-25T10:00:00.000Z'));
 
@@ -39,15 +51,20 @@ describe('RegisterUseCase', () => {
       rateLimiter,
       idGenerator,
       clock,
+      verificationCodeRepo,
+      codeHasher,
+      mailer,
+      codeGenerator,
     );
   });
 
-  it('successfully registers an account and returns an auth session', async () => {
+  it('successfully registers an account, creates verification code, and sends email', async () => {
     const session = await useCase.execute({
       email: '  Teacher@Cute.Com ',
       password: 'password123',
       remember: true,
       ip: '127.0.0.1',
+      acceptLanguage: 'en-US,en;q=0.9',
     });
 
     expect(session.user.email).toBe('teacher@cute.com');
@@ -70,14 +87,41 @@ describe('RegisterUseCase', () => {
     const tokens = refreshTokenRepo.getAllTokens();
     expect(tokens).toHaveLength(1);
     expect(tokens[0].accountId).toBe(saved!.id);
+
+    // Verification code created
+    const codeRecord = await verificationCodeRepo.findLatest('teacher@cute.com', 'email_verification');
+    expect(codeRecord).not.toBeNull();
+    expect(codeRecord?.codeHash).toBe(codeHasher.hash('654321'));
+    expect(codeRecord?.accountId).toBe(saved!.id);
+    expect(codeRecord?.expiresAt).toEqual(new Date('2026-10-25T10:10:00.000Z')); // 10m TTL
+    expect(codeRecord?.maxAttempts).toBe(5);
+
+    // Email sent
+    expect(mailer.sentEmails).toHaveLength(1);
+    expect(mailer.sentEmails[0].to).toBe('teacher@cute.com');
+    expect(mailer.sentEmails[0].subject).toContain('654321');
+    expect(mailer.sentEmails[0].html).toContain('654321');
   });
 
-  it('rejects duplicate email with EmailTakenError (email_taken)', async () => {
+  it('sends email in Vietnamese when Accept-Language is not English', async () => {
+    await useCase.execute({
+      email: 'vietnamese@cute.com',
+      password: 'password123',
+      ip: '127.0.0.1',
+      acceptLanguage: 'vi-VN,vi;q=0.9',
+    });
+
+    expect(mailer.sentEmails).toHaveLength(1);
+    expect(mailer.sentEmails[0].subject).toContain('Mã xác minh email của bạn');
+  });
+
+  it('rejects duplicate email with EmailTakenError (email_taken) without sending email', async () => {
     await useCase.execute({
       email: 'teacher@cute.com',
       password: 'password123',
       ip: '127.0.0.1',
     });
+    mailer.clear();
 
     await expect(
       useCase.execute({
@@ -86,6 +130,8 @@ describe('RegisterUseCase', () => {
         ip: '127.0.0.1',
       }),
     ).rejects.toThrow(EmailTakenError);
+
+    expect(mailer.sentEmails).toHaveLength(0);
   });
 
   it('validates email format and password length', async () => {

@@ -9,4 +9,6 @@ export interface AccountRepository {
   createWithPassword(account: Account, passwordHash: string): Promise<void>;
   getPasswordHash(accountId: string): Promise<string | null>;
   updateProfile(profile: Profile): Promise<void>;
+  markEmailVerified(accountId: string, verifiedAt: Date): Promise<void>;
+  updatePassword(accountId: string, passwordHash: string): Promise<void>;
 }

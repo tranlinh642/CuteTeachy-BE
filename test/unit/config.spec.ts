@@ -5,7 +5,7 @@ describe('AppConfig', () => {
     resetConfigForTest();
   });
 
-  it('successfully parses valid environment variables with S3 defaults', () => {
+  it('successfully parses valid environment variables with S3 and SMTP defaults', () => {
     const rawEnv = {
       PORT: '4000',
       NODE_ENV: 'test',
@@ -29,6 +29,15 @@ describe('AppConfig', () => {
     expect(config.S3_SECRET_ACCESS_KEY).toBe('minioadmin');
     expect(config.S3_BUCKET_AVATARS).toBe('avatars');
     expect(config.S3_PUBLIC_BASE_URL).toBe('http://localhost:9000/avatars');
+
+    // SMTP defaults
+    expect(config.SMTP_HOST).toBe('localhost');
+    expect(config.SMTP_PORT).toBe(1025);
+    expect(config.SMTP_SECURE).toBe(false);
+    expect(config.SMTP_USER).toBe('');
+    expect(config.SMTP_PASS).toBe('');
+    expect(config.MAIL_FROM).toBe('CuteTeachy <no-reply@cuteteachy.local>');
+    expect(config.EMAIL_VERIFICATION_REQUIRED).toBe(false);
   });
 
   it('successfully parses custom S3 variables for Cloudflare R2 production', () => {
@@ -54,6 +63,33 @@ describe('AppConfig', () => {
     expect(config.S3_SECRET_ACCESS_KEY).toBe('r2-secret-key');
     expect(config.S3_BUCKET).toBe('prod-avatars');
     expect(config.S3_PUBLIC_URL_PREFIX).toBe('https://avatar.cuteteachy.app');
+  });
+
+  it('successfully parses custom SMTP variables for production Gmail SMTP', () => {
+    const rawEnv = {
+      PORT: '4000',
+      NODE_ENV: 'production',
+      FE_URL: 'https://cuteteachy.app',
+      DATABASE_URL: 'postgresql://user:pass@supabase:6543/db?pgbouncer=true',
+      DIRECT_URL: 'postgresql://user:pass@supabase:5432/db',
+      SMTP_HOST: 'smtp.gmail.com',
+      SMTP_PORT: '465',
+      SMTP_SECURE: 'true',
+      SMTP_USER: 'noreply@cuteteachy.com',
+      SMTP_PASS: 'secret-app-password',
+      MAIL_FROM: 'CuteTeachy <noreply@cuteteachy.com>',
+      EMAIL_VERIFICATION_REQUIRED: 'true',
+    };
+
+    const config = loadConfig(rawEnv);
+
+    expect(config.SMTP_HOST).toBe('smtp.gmail.com');
+    expect(config.SMTP_PORT).toBe(465);
+    expect(config.SMTP_SECURE).toBe(true);
+    expect(config.SMTP_USER).toBe('noreply@cuteteachy.com');
+    expect(config.SMTP_PASS).toBe('secret-app-password');
+    expect(config.MAIL_FROM).toBe('CuteTeachy <noreply@cuteteachy.com>');
+    expect(config.EMAIL_VERIFICATION_REQUIRED).toBe(true);
   });
 
   it('fails fast and reports missing required variables when required env vars are missing', () => {

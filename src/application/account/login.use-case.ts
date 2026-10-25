@@ -1,4 +1,8 @@
-import { InvalidCredentialsError, RateLimitedError } from '../../domain/account/account.errors';
+import {
+  EmailNotVerifiedError,
+  InvalidCredentialsError,
+  RateLimitedError,
+} from '../../domain/account/account.errors';
 import { Clock } from '../shared/ports/clock.port';
 import { IdGenerator } from '../shared/ports/id-generator.port';
 import { AccountRepository } from './ports/account.repository.port';
@@ -26,6 +30,7 @@ export class LoginUseCase {
     private readonly clock: Clock,
     private readonly rateLimitMax = 10,
     private readonly rateLimitWindowSeconds = 60,
+    private readonly emailVerificationRequired = false,
   ) {}
 
   async execute(input: LoginInput): Promise<AuthSessionDto> {
@@ -54,6 +59,15 @@ export class LoginUseCase {
     const valid = await this.passwordHasher.verify(input.password, hash);
     if (!valid) {
       throw new InvalidCredentialsError();
+    }
+
+    if (
+      this.emailVerificationRequired &&
+      account.emailVerifiedAt === null &&
+      account.loginProviders.length === 1 &&
+      account.hasLoginProvider('password')
+    ) {
+      throw new EmailNotVerifiedError();
     }
 
     const accessToken = await this.tokenService.createAccessToken({ sub: account.id });

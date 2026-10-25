@@ -21,6 +21,12 @@ describe('JwtTokenService', () => {
     S3_SECRET_ACCESS_KEY: 'minioadmin',
     S3_BUCKET_AVATARS: 'avatars',
     S3_PUBLIC_BASE_URL: 'http://localhost:9000/avatars',
+    SMTP_HOST: 'localhost',
+    SMTP_PORT: 1025,
+    SMTP_SECURE: false,
+    SMTP_USER: '',
+    SMTP_PASS: '',
+    MAIL_FROM: 'CuteTeachy <no-reply@cuteteachy.local>',
   };
 
   const service = new JwtTokenService(mockConfig);

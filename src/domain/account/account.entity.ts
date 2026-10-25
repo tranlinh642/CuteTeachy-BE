@@ -55,6 +55,11 @@ export class Account {
     }
   }
 
+  verifyEmail(now = new Date()): void {
+    this.props.emailVerifiedAt = now;
+    this.props.updatedAt = now;
+  }
+
   static registerWithPassword(props: {
     id: string;
     email: Email;

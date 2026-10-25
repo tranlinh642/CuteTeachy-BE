@@ -10,6 +10,7 @@ import { Account } from '../../../src/domain/account/account.entity';
 import { Email } from '../../../src/domain/account/email.vo';
 import { Profile } from '../../../src/domain/account/profile.entity';
 import {
+  EmailNotVerifiedError,
   InvalidCredentialsError,
   RateLimitedError,
 } from '../../../src/domain/account/account.errors';
@@ -41,6 +42,9 @@ describe('LoginUseCase', () => {
       rateLimiter,
       idGenerator,
       clock,
+      10,
+      60,
+      false,
     );
 
     // Seed an account
@@ -54,7 +58,7 @@ describe('LoginUseCase', () => {
     await accountRepo.createWithPassword(account, hash);
   });
 
-  it('successfully logs in with valid email and password', async () => {
+  it('successfully logs in with valid email and password when email verification is not required', async () => {
     const session = await useCase.execute({
       email: ' TEACHER@cute.com ',
       password: 'correctPassword123',
@@ -66,6 +70,77 @@ describe('LoginUseCase', () => {
     expect(session.user.email).toBe('teacher@cute.com');
     expect(session.accessToken).toBeDefined();
     expect(session.refreshToken).toBeDefined();
+  });
+
+  it('throws EmailNotVerifiedError (403 email_not_verified) when emailVerificationRequired=true and emailVerifiedAt=null', async () => {
+    const strictUseCase = new LoginUseCase(
+      accountRepo,
+      refreshTokenRepo,
+      passwordHasher,
+      tokenService,
+      rateLimiter,
+      idGenerator,
+      clock,
+      10,
+      60,
+      true, // EMAIL_VERIFICATION_REQUIRED
+    );
+
+    await expect(
+      strictUseCase.execute({
+        email: 'teacher@cute.com',
+        password: 'correctPassword123',
+        ip: '127.0.0.1',
+      }),
+    ).rejects.toThrow(EmailNotVerifiedError);
+  });
+
+  it('allows login when emailVerificationRequired=true and emailVerifiedAt is set', async () => {
+    const strictUseCase = new LoginUseCase(
+      accountRepo,
+      refreshTokenRepo,
+      passwordHasher,
+      tokenService,
+      rateLimiter,
+      idGenerator,
+      clock,
+      10,
+      60,
+      true, // EMAIL_VERIFICATION_REQUIRED
+    );
+
+    await accountRepo.markEmailVerified('acc-1', clock.now());
+
+    const session = await strictUseCase.execute({
+      email: 'teacher@cute.com',
+      password: 'correctPassword123',
+      ip: '127.0.0.1',
+    });
+
+    expect(session.user.emailVerified).toBe(true);
+  });
+
+  it('throws InvalidCredentialsError before checking verification when password is wrong even if verification is required', async () => {
+    const strictUseCase = new LoginUseCase(
+      accountRepo,
+      refreshTokenRepo,
+      passwordHasher,
+      tokenService,
+      rateLimiter,
+      idGenerator,
+      clock,
+      10,
+      60,
+      true,
+    );
+
+    await expect(
+      strictUseCase.execute({
+        email: 'teacher@cute.com',
+        password: 'wrongPassword',
+        ip: '127.0.0.1',
+      }),
+    ).rejects.toThrow(InvalidCredentialsError);
   });
 
   it('rejects with InvalidCredentialsError when password does not match', async () => {

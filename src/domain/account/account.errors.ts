@@ -47,3 +47,19 @@ export class OnboardingRequiredError extends DomainError {
     super(message);
   }
 }
+
+export class InvalidCodeError extends DomainError {
+  readonly code = 'invalid_code';
+
+  constructor(message = 'Invalid, expired, or maximum attempts exceeded') {
+    super(message);
+  }
+}
+
+export class EmailNotVerifiedError extends DomainError {
+  readonly code = 'email_not_verified';
+
+  constructor(message = 'Email is not verified') {
+    super(message);
+  }
+}

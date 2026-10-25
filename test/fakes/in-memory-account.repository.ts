@@ -48,4 +48,24 @@ export class InMemoryAccountRepository implements AccountRepository {
       this.accounts.set(profile.accountId, updatedAccount);
     }
   }
+
+  async markEmailVerified(accountId: string, verifiedAt: Date): Promise<void> {
+    const existing = this.accounts.get(accountId);
+    if (existing) {
+      const updated = Account.reconstitute({
+        id: existing.id,
+        email: existing.email,
+        emailVerifiedAt: verifiedAt,
+        loginProviders: existing.loginProviders,
+        profile: existing.profile,
+        createdAt: existing.createdAt,
+        updatedAt: verifiedAt,
+      });
+      this.accounts.set(accountId, updated);
+    }
+  }
+
+  async updatePassword(accountId: string, passwordHash: string): Promise<void> {
+    this.passwordHashes.set(accountId, passwordHash);
+  }
 }
