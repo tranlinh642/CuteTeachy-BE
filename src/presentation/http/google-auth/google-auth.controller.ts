@@ -8,13 +8,11 @@ import {
   Query,
   Req,
   Res,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { GetGoogleAuthUrlUseCase } from '../../../application/google-auth/get-google-auth-url.use-case';
 import { HandleGoogleCallbackUseCase } from '../../../application/google-auth/handle-google-callback.use-case';
 import { ExchangeCodeUseCase } from '../../../application/google-auth/exchange-code.use-case';
-import { InvalidExchangeCodeError } from '../../../domain/google-auth/google-auth.errors';
 import { AuthSessionDto } from '../../../application/account/account.dto';
 import { Public } from '../auth/public.decorator';
 import {
@@ -75,19 +73,9 @@ export class GoogleAuthController {
     @Req() req: Request,
   ): Promise<AuthSessionDto> {
     const ip = getClientIp(req);
-    try {
-      return await this.exchangeCodeUseCase.execute({
-        code: dto.code,
-        ip,
-      });
-    } catch (error) {
-      if (error instanceof InvalidExchangeCodeError) {
-        throw new UnauthorizedException({
-          code: 'invalid_code',
-          message: error.message,
-        });
-      }
-      throw error;
-    }
+    return this.exchangeCodeUseCase.execute({
+      code: dto.code,
+      ip,
+    });
   }
 }

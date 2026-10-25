@@ -1,4 +1,4 @@
-import { HttpStatus, UnauthorizedException } from '@nestjs/common';
+import { HttpStatus } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { GoogleAuthController } from '../../../src/presentation/http/google-auth/google-auth.controller';
 import { GetGoogleAuthUrlUseCase } from '../../../src/application/google-auth/get-google-auth-url.use-case';
@@ -135,24 +135,14 @@ describe('GoogleAuthController', () => {
       });
     });
 
-    it('maps InvalidExchangeCodeError to UnauthorizedException', async () => {
+    it('propagates InvalidExchangeCodeError to be handled by global filter', async () => {
       exchangeCodeUseCase.execute.mockRejectedValue(
         new InvalidExchangeCodeError('Invalid exchange code'),
       );
 
       await expect(
         controller.exchange({ code: 'bad-code' }, mockRequest as Request),
-      ).rejects.toThrow(UnauthorizedException);
-
-      try {
-        await controller.exchange({ code: 'bad-code' }, mockRequest as Request);
-      } catch (err: any) {
-        expect(err.getStatus()).toBe(HttpStatus.UNAUTHORIZED);
-        expect(err.getResponse()).toEqual({
-          code: 'invalid_code',
-          message: 'Invalid exchange code',
-        });
-      }
+      ).rejects.toThrow(InvalidExchangeCodeError);
     });
   });
 });

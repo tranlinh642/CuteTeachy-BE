@@ -99,7 +99,7 @@ describe('Password Reset E2E (Mailpit Integration)', () => {
         code: '000000',
         newPassword: 'newStrongPassword456',
       })
-      .expect(400);
+      .expect(401);
 
     // 6. Reset password successfully
     await request(app.getHttpServer())

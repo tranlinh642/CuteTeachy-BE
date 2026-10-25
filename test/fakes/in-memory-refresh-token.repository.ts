@@ -12,11 +12,12 @@ export class InMemoryRefreshTokenRepository implements RefreshTokenRepository {
     tokenHash: string;
     familyId: string;
     expiresAt: Date;
+    createdAt?: Date;
   }): Promise<void> {
     this.tokens.set(record.tokenHash, {
       ...record,
       revokedAt: null,
-      createdAt: new Date(),
+      createdAt: record.createdAt ?? new Date(),
     });
   }
 

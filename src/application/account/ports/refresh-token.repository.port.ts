@@ -17,6 +17,7 @@ export interface RefreshTokenRepository {
     tokenHash: string;
     familyId: string;
     expiresAt: Date;
+    createdAt?: Date;
   }): Promise<void>;
   findByTokenHash(tokenHash: string): Promise<RefreshTokenRecord | null>;
   revoke(id: string, revokedAt: Date): Promise<void>;

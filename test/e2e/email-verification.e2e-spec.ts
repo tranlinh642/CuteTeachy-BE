@@ -107,7 +107,7 @@ describe('Email Verification E2E (Mailpit Integration)', () => {
     expect(codeRecord?.usedAt).not.toBeNull();
   });
 
-  it('POST /auth/email/verify returns 400 invalid_code for wrong code and tracks attempts', async () => {
+  it('POST /auth/email/verify returns 401 invalid_code for wrong code and tracks attempts', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
       .send({
@@ -122,7 +122,7 @@ describe('Email Verification E2E (Mailpit Integration)', () => {
         email: 'teacher.attempts@cuteteachy.local',
         code: '000000',
       })
-      .expect(400);
+      .expect(401);
 
     expect(res.body.code).toBe('invalid_code');
 

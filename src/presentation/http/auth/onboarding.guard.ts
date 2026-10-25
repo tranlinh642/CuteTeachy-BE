@@ -1,10 +1,7 @@
-import { CanActivate, ExecutionContext, Inject, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import {
-  ACCOUNT_REPOSITORY,
-  AccountRepository,
-} from '../../../application/account/ports/account.repository.port';
+import { GetMeUseCase } from '../../../application/account/get-me.use-case';
 import { OnboardingRequiredError, UnauthorizedError } from '../../../domain/account/account.errors';
 import { IS_PUBLIC_KEY } from './public.decorator';
 import { IS_EXEMPT_ONBOARDING_KEY } from './exempt-onboarding.decorator';
@@ -13,7 +10,7 @@ import { IS_EXEMPT_ONBOARDING_KEY } from './exempt-onboarding.decorator';
 export class OnboardingGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    @Inject(ACCOUNT_REPOSITORY) private readonly accountRepo: AccountRepository,
+    private readonly getMeUseCase: GetMeUseCase,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -49,12 +46,8 @@ export class OnboardingGuard implements CanActivate {
       throw new UnauthorizedError('Unauthorized');
     }
 
-    const account = await this.accountRepo.findById(userId);
-    if (!account) {
-      throw new UnauthorizedError('Account not found');
-    }
-
-    if (!account.profile.isOnboardingCompleted) {
+    const user = await this.getMeUseCase.execute({ accountId: userId });
+    if (!user.onboardingCompletedAt) {
       throw new OnboardingRequiredError('Onboarding required');
     }
 
