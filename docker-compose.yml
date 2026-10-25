@@ -1,3 +1,5 @@
+name: cuteteachy-be
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -66,25 +68,28 @@ services:
 
   # =============================================================================
   # Service api — profile 'app'
-  # BE-02 sẽ cấu hình Dockerfile và hoàn thiện service này.
+  # BE-02 cấu hình Dockerfile và hoàn thiện service này.
   # Chạy bằng: docker compose --profile app up
   # =============================================================================
-  # api:
-  #   profiles: ["app"]
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - "${PORT:-4000}:4000"
-  #   env_file:
-  #     - .env
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     minio:
-  #       condition: service_healthy
-  #     mailpit:
-  #       condition: service_healthy
+  api:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${PORT:-4000}:4000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-cuteteachy}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-cuteteachy}?schema=public
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
 
 volumes:
   postgres_data:
