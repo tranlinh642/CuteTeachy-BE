@@ -22,6 +22,12 @@ describe('S3ObjectStorage', () => {
     S3_BUCKET_AVATARS: 'avatars',
     S3_PUBLIC_BASE_URL: 'http://localhost:9000/avatars',
     S3_PUBLIC_URL_PREFIX: undefined,
+    SMTP_HOST: 'localhost',
+    SMTP_PORT: 1025,
+    SMTP_SECURE: false,
+    SMTP_USER: '',
+    SMTP_PASS: '',
+    MAIL_FROM: 'CuteTeachy <no-reply@cuteteachy.local>',
   };
 
   it('builds public url using S3_PUBLIC_BASE_URL', () => {

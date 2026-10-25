@@ -107,4 +107,23 @@ export class PrismaAccountRepository implements AccountRepository {
       },
     });
   }
+
+  async markEmailVerified(accountId: string, verifiedAt: Date): Promise<void> {
+    await this.prisma.account.update({
+      where: { id: accountId },
+      data: { emailVerifiedAt: verifiedAt },
+    });
+  }
+
+  async updatePassword(accountId: string, passwordHash: string): Promise<void> {
+    await this.prisma.loginProvider.update({
+      where: {
+        accountId_provider: {
+          accountId,
+          provider: 'password',
+        },
+      },
+      data: { passwordHash },
+    });
+  }
 }

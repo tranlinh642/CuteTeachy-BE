@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { CLOCK, Clock } from '../application/shared/ports/clock.port';
 import { ID_GENERATOR, IdGenerator } from '../application/shared/ports/id-generator.port';
+import { MAILER, Mailer } from '../application/shared/ports/mailer.port';
+import { APP_CONFIG, AppConfig } from '../infrastructure/config/app.config';
 import {
   ACCOUNT_REPOSITORY,
   AccountRepository,
@@ -13,6 +15,15 @@ import {
 import { PASSWORD_HASHER, PasswordHasher } from '../application/account/ports/password-hasher.port';
 import { TOKEN_SERVICE, TokenService } from '../application/account/ports/token.service.port';
 import { RATE_LIMITER, RateLimiter } from '../application/account/ports/rate-limiter.port';
+import {
+  VERIFICATION_CODE_REPOSITORY,
+  VerificationCodeRepository,
+} from '../application/verification/ports/verification-code.repository.port';
+import { CODE_HASHER, CodeHasher } from '../application/google-auth/ports/code-hasher.port';
+import {
+  CODE_GENERATOR,
+  CodeGenerator,
+} from '../application/verification/ports/code-generator.port';
 
 import { RegisterUseCase } from '../application/account/register.use-case';
 import { LoginUseCase } from '../application/account/login.use-case';
@@ -30,8 +41,10 @@ import { PostgresRateLimiter } from '../infrastructure/auth/postgres-rate-limite
 import { AuthController } from '../presentation/http/account/auth.controller';
 import { JwtAuthGuard } from '../presentation/http/auth/jwt-auth.guard';
 import { OnboardingGuard } from '../presentation/http/auth/onboarding.guard';
+import { VerificationModule } from './verification.module';
 
 @Module({
+  imports: [VerificationModule],
   controllers: [AuthController],
   providers: [
     {
@@ -72,6 +85,10 @@ import { OnboardingGuard } from '../presentation/http/auth/onboarding.guard';
         rateLimiter: RateLimiter,
         idGenerator: IdGenerator,
         clock: Clock,
+        verificationCodeRepo: VerificationCodeRepository,
+        codeHasher: CodeHasher,
+        mailer: Mailer,
+        codeGenerator: CodeGenerator,
       ) =>
         new RegisterUseCase(
           accountRepo,
@@ -81,6 +98,10 @@ import { OnboardingGuard } from '../presentation/http/auth/onboarding.guard';
           rateLimiter,
           idGenerator,
           clock,
+          verificationCodeRepo,
+          codeHasher,
+          mailer,
+          codeGenerator,
         ),
       inject: [
         ACCOUNT_REPOSITORY,
@@ -90,6 +111,10 @@ import { OnboardingGuard } from '../presentation/http/auth/onboarding.guard';
         RATE_LIMITER,
         ID_GENERATOR,
         CLOCK,
+        VERIFICATION_CODE_REPOSITORY,
+        CODE_HASHER,
+        MAILER,
+        CODE_GENERATOR,
       ],
     },
     {
@@ -102,6 +127,7 @@ import { OnboardingGuard } from '../presentation/http/auth/onboarding.guard';
         rateLimiter: RateLimiter,
         idGenerator: IdGenerator,
         clock: Clock,
+        config: AppConfig,
       ) =>
         new LoginUseCase(
           accountRepo,
@@ -111,6 +137,9 @@ import { OnboardingGuard } from '../presentation/http/auth/onboarding.guard';
           rateLimiter,
           idGenerator,
           clock,
+          10,
+          60,
+          config.EMAIL_VERIFICATION_REQUIRED,
         ),
       inject: [
         ACCOUNT_REPOSITORY,
@@ -120,6 +149,7 @@ import { OnboardingGuard } from '../presentation/http/auth/onboarding.guard';
         RATE_LIMITER,
         ID_GENERATOR,
         CLOCK,
+        APP_CONFIG,
       ],
     },
     {

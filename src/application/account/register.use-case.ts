@@ -4,11 +4,19 @@ import { Account } from '../../domain/account/account.entity';
 import { EmailTakenError, RateLimitedError } from '../../domain/account/account.errors';
 import { Clock } from '../shared/ports/clock.port';
 import { IdGenerator } from '../shared/ports/id-generator.port';
+import { Mailer } from '../shared/ports/mailer.port';
 import { AccountRepository } from './ports/account.repository.port';
 import { RefreshTokenRepository } from './ports/refresh-token.repository.port';
 import { PasswordHasher } from './ports/password-hasher.port';
 import { TokenService } from './ports/token.service.port';
 import { RateLimiter } from './ports/rate-limiter.port';
+import { CodeHasher } from '../google-auth/ports/code-hasher.port';
+import { VerificationCodeRepository } from '../verification/ports/verification-code.repository.port';
+import { CodeGenerator } from '../verification/ports/code-generator.port';
+import {
+  buildEmailVerificationEmail,
+  resolveLanguage,
+} from '../email-templates/verification-email.template';
 import { AuthSessionDto, toUserDto } from './account.dto';
 
 export interface RegisterInput {
@@ -16,6 +24,7 @@ export interface RegisterInput {
   password: string;
   remember?: boolean;
   ip: string;
+  acceptLanguage?: string;
 }
 
 export class RegisterUseCase {
@@ -27,6 +36,10 @@ export class RegisterUseCase {
     private readonly rateLimiter: RateLimiter,
     private readonly idGenerator: IdGenerator,
     private readonly clock: Clock,
+    private readonly verificationCodeRepository: VerificationCodeRepository,
+    private readonly codeHasher: CodeHasher,
+    private readonly mailer: Mailer,
+    private readonly codeGenerator?: CodeGenerator,
     private readonly rateLimitMax = 10,
     private readonly rateLimitWindowSeconds = 60,
   ) {}
@@ -77,6 +90,33 @@ export class RegisterUseCase {
       familyId,
       expiresAt: refreshToken.expiresAt,
     });
+
+    // Verification code generation & email dispatch
+    const code =
+      this.codeGenerator?.generate() ??
+      Math.floor(100000 + Math.random() * 900000).toString();
+    const codeHash = this.codeHasher.hash(code);
+    const verificationCodeId = this.idGenerator.next();
+    const expiresAt = new Date(now.getTime() + 10 * 60 * 1000); // 10 minutes TTL
+
+    await this.verificationCodeRepository.create({
+      id: verificationCodeId,
+      email: account.email,
+      accountId: account.id,
+      purpose: 'email_verification',
+      codeHash,
+      expiresAt,
+      maxAttempts: 5,
+    });
+
+    const lang = resolveLanguage(input.acceptLanguage);
+    const emailContent = buildEmailVerificationEmail(code, lang);
+    await this.mailer.sendEmail(
+      account.email,
+      emailContent.subject,
+      emailContent.html,
+      emailContent.text,
+    );
 
     return {
       user: toUserDto(account),

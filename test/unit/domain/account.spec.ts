@@ -118,5 +118,19 @@ describe('Account Domain', () => {
       account.linkGoogle();
       expect(account.loginProviders.filter((p: string) => p === 'google')).toHaveLength(1);
     });
+
+    it('verifies email and updates emailVerifiedAt timestamp', () => {
+      const email = Email.create('teacher@example.com');
+      const account = Account.registerWithPassword({
+        id: 'acc-123',
+        email,
+        profileId: 'prof-123',
+      });
+
+      expect(account.emailVerifiedAt).toBeNull();
+      const verifiedTime = new Date('2026-10-25T11:00:00Z');
+      account.verifyEmail(verifiedTime);
+      expect(account.emailVerifiedAt).toEqual(verifiedTime);
+    });
   });
 });

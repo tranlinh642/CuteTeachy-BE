@@ -45,11 +45,13 @@ export class AuthController {
   @HttpCode(HttpStatus.CREATED)
   async register(@Body() dto: RegisterRequestDto, @Req() req: Request): Promise<AuthSessionDto> {
     const ip = getClientIp(req);
+    const acceptLanguage = req.headers['accept-language'];
     return this.registerUseCase.execute({
       email: dto.email,
       password: dto.password,
       remember: dto.remember,
       ip,
+      acceptLanguage,
     });
   }
 
