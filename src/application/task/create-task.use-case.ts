@@ -5,6 +5,7 @@ import { TaskValidationError } from '../../domain/task/task.errors';
 import { checkCreationIdempotency } from '../../domain/shared/sync-idempotency';
 import type { Clock } from '../shared/ports/clock.port';
 import type { TaskRepository } from './ports/task.repository.port';
+import type { TagRepository } from '../tag/ports/tag.repository.port';
 import { TaskDto, toTaskDto } from './task.dto';
 
 export interface CreateTaskInput {
@@ -28,6 +29,7 @@ export interface CreateTaskOutput {
 export class CreateTaskUseCase {
   constructor(
     private readonly taskRepo: TaskRepository,
+    private readonly tagRepo: TagRepository,
     private readonly clock: Clock,
   ) {}
 
@@ -43,7 +45,7 @@ export class CreateTaskUseCase {
     }
 
     if (input.tagIds && input.tagIds.length > 0) {
-      const valid = await this.taskRepo.validateTagOwnership(input.accountId, input.tagIds);
+      const valid = await this.tagRepo.validateOwnership(input.accountId, input.tagIds);
       if (!valid) {
         throw new TaskValidationError(
           'One or more tags not found, deleted, or belong to another account',

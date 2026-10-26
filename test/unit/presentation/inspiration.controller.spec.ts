@@ -26,8 +26,6 @@ describe('InspirationController', () => {
           vi: 'Ảnh hưởng của một người thầy tốt không bao giờ phai nhạt.',
           en: 'The influence of a good teacher can never be erased.',
         },
-        quoteVi: 'Ảnh hưởng của một người thầy tốt không bao giờ phai nhạt.',
-        quoteEn: 'The influence of a good teacher can never be erased.',
         author: 'Unknown Author',
       };
 
@@ -44,8 +42,6 @@ describe('InspirationController', () => {
           vi: 'Ảnh hưởng của một người thầy tốt không bao giờ phai nhạt.',
           en: 'The influence of a good teacher can never be erased.',
         },
-        quoteVi: 'Ảnh hưởng của một người thầy tốt không bao giờ phai nhạt.',
-        quoteEn: 'The influence of a good teacher can never be erased.',
         author: 'Unknown Author',
       });
     });

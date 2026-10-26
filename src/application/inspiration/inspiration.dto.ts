@@ -4,7 +4,5 @@ export interface InspirationDto {
     vi: string;
     en: string;
   };
-  quoteVi: string;
-  quoteEn: string;
   author: string | null;
 }

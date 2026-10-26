@@ -4,6 +4,7 @@ import { TaskValidationError } from '../../domain/task/task.errors';
 import { EntityNotFoundError } from '../../domain/shared/sync.errors';
 import type { Clock } from '../shared/ports/clock.port';
 import type { TaskRepository } from './ports/task.repository.port';
+import type { TagRepository } from '../tag/ports/tag.repository.port';
 import { TaskDto, toTaskDto } from './task.dto';
 
 export interface UpdateTaskInput {
@@ -22,6 +23,7 @@ export interface UpdateTaskInput {
 export class UpdateTaskUseCase {
   constructor(
     private readonly taskRepo: TaskRepository,
+    private readonly tagRepo: TagRepository,
     private readonly clock: Clock,
   ) {}
 
@@ -33,7 +35,7 @@ export class UpdateTaskUseCase {
     }
 
     if (input.tagIds !== undefined && input.tagIds.length > 0) {
-      const valid = await this.taskRepo.validateTagOwnership(input.accountId, input.tagIds);
+      const valid = await this.tagRepo.validateOwnership(input.accountId, input.tagIds);
       if (!valid) {
         throw new TaskValidationError(
           'One or more tags not found, deleted, or belong to another account',

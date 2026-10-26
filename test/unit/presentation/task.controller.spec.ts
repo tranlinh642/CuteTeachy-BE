@@ -1,12 +1,12 @@
-import { HttpStatus } from '@nestjs/common';
-import { Response } from 'express';
+import { Test, TestingModule } from '@nestjs/testing';
 import { TaskController } from '../../../src/presentation/http/task/task.controller';
 import { CreateTaskUseCase } from '../../../src/application/task/create-task.use-case';
 import { UpdateTaskUseCase } from '../../../src/application/task/update-task.use-case';
 import { DeleteTaskUseCase } from '../../../src/application/task/delete-task.use-case';
 import { ListTasksUseCase } from '../../../src/application/task/list-tasks.use-case';
-import { AccessTokenPayload } from '../../../src/application/account/ports/token.service.port';
 import { TaskDto } from '../../../src/application/task/task.dto';
+import { AccessTokenPayload } from '../../../src/application/account/ports/token.service.port';
+import { Response } from 'express';
 
 describe('TaskController', () => {
   let controller: TaskController;
@@ -21,8 +21,10 @@ describe('TaskController', () => {
 
   const mockTaskDto: TaskDto = {
     id: '11111111-1111-4111-8111-111111111111',
-    title: 'Soạn giáo án',
+    title: 'Task 1',
+    notes: 'Some note',
     date: '2026-10-27',
+    time: '09:00',
     category: 'school',
     priority: 'normal',
     completed: false,
@@ -31,30 +33,35 @@ describe('TaskController', () => {
     updatedAt: '2026-10-26T10:00:00.000Z',
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     createTaskUseCase = {
       execute: jest.fn(),
-    } as any;
+    } as unknown as jest.Mocked<CreateTaskUseCase>;
     updateTaskUseCase = {
       execute: jest.fn(),
-    } as any;
+    } as unknown as jest.Mocked<UpdateTaskUseCase>;
     deleteTaskUseCase = {
       execute: jest.fn(),
-    } as any;
+    } as unknown as jest.Mocked<DeleteTaskUseCase>;
     listTasksUseCase = {
       execute: jest.fn(),
-    } as any;
+    } as unknown as jest.Mocked<ListTasksUseCase>;
 
-    controller = new TaskController(
-      createTaskUseCase,
-      updateTaskUseCase,
-      deleteTaskUseCase,
-      listTasksUseCase,
-    );
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [TaskController],
+      providers: [
+        { provide: CreateTaskUseCase, useValue: createTaskUseCase },
+        { provide: UpdateTaskUseCase, useValue: updateTaskUseCase },
+        { provide: DeleteTaskUseCase, useValue: deleteTaskUseCase },
+        { provide: ListTasksUseCase, useValue: listTasksUseCase },
+      ],
+    }).compile();
+
+    controller = module.get<TaskController>(TaskController);
   });
 
   describe('create', () => {
-    it('sets status 201 when new task is created', async () => {
+    it('returns 201 Created when task is newly created', async () => {
       createTaskUseCase.execute.mockResolvedValue({
         task: mockTaskDto,
         created: true,
@@ -68,18 +75,18 @@ describe('TaskController', () => {
         mockUser,
         {
           id: mockTaskDto.id,
-          title: 'Soạn giáo án',
-          date: '2026-10-27',
+          title: mockTaskDto.title,
+          date: mockTaskDto.date,
           category: 'school',
         },
         res,
       );
 
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.CREATED);
+      expect(res.status).toHaveBeenCalledWith(201);
       expect(result).toEqual(mockTaskDto);
     });
 
-    it('sets status 200 when duplicate task is returned', async () => {
+    it('returns 200 OK when task already exists (idempotency)', async () => {
       createTaskUseCase.execute.mockResolvedValue({
         task: mockTaskDto,
         created: false,
@@ -93,14 +100,14 @@ describe('TaskController', () => {
         mockUser,
         {
           id: mockTaskDto.id,
-          title: 'Soạn giáo án',
-          date: '2026-10-27',
+          title: mockTaskDto.title,
+          date: mockTaskDto.date,
           category: 'school',
         },
         res,
       );
 
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
+      expect(res.status).toHaveBeenCalledWith(200);
       expect(result).toEqual(mockTaskDto);
     });
   });
@@ -143,6 +150,24 @@ describe('TaskController', () => {
         id: mockTaskDto.id,
         accountId: 'acc-1',
         title: 'Updated',
+      });
+      expect(result).toEqual(updatedDto);
+    });
+
+    it('allows passing null for notes and time to clear them', async () => {
+      const updatedDto = { ...mockTaskDto, notes: undefined, time: undefined };
+      updateTaskUseCase.execute.mockResolvedValue(updatedDto);
+
+      const result = await controller.update(mockUser, mockTaskDto.id, {
+        notes: null,
+        time: null,
+      });
+
+      expect(updateTaskUseCase.execute).toHaveBeenCalledWith({
+        id: mockTaskDto.id,
+        accountId: 'acc-1',
+        notes: null,
+        time: null,
       });
       expect(result).toEqual(updatedDto);
     });

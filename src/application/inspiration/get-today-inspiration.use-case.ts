@@ -27,14 +27,12 @@ export class GetTodayInspirationUseCase {
       throw new InspirationNotFoundError('No inspirations available');
     }
 
-    const index = today.dayOfYear % quotes.length;
+    const index = (today.dayOfYear - 1) % quotes.length;
     const selected = quotes[index];
 
     return {
       id: selected.id,
       quote: selected.quote,
-      quoteVi: selected.quoteVi,
-      quoteEn: selected.quoteEn,
       author: selected.author,
     };
   }

@@ -1,24 +1,30 @@
 import { UpdateNoteUseCase } from '../../../../src/application/note/update-note.use-case';
 import { FakeNoteRepository } from './fake-note.repository';
+import { FakeTagRepository } from '../tag/fake-tag.repository';
 import { FixedClock } from '../../../fakes/fixed-clock';
 import { EntityNotFoundError } from '../../../../src/domain/shared/sync.errors';
 import { NoteValidationError } from '../../../../src/domain/note/note.errors';
 import { Note } from '../../../../src/domain/note/note.entity';
+import { Tag } from '../../../../src/domain/tag/tag.entity';
 
 describe('UpdateNoteUseCase', () => {
   let noteRepo: FakeNoteRepository;
+  let tagRepo: FakeTagRepository;
   let clock: FixedClock;
   let useCase: UpdateNoteUseCase;
 
   const validId = '11111111-1111-4111-8111-111111111111';
+  const tagId1 = '22222222-2222-4222-8222-222222222222';
+  const foreignTagId = '44444444-4444-4444-8444-444444444444';
   const accountId = 'teacher-1';
   const initialTime = new Date('2026-10-26T10:00:00.000Z');
   const updateTime = new Date('2026-10-26T12:00:00.000Z');
 
   beforeEach(async () => {
     noteRepo = new FakeNoteRepository();
+    tagRepo = new FakeTagRepository();
     clock = new FixedClock(updateTime);
-    useCase = new UpdateNoteUseCase(noteRepo, clock);
+    useCase = new UpdateNoteUseCase(noteRepo, tagRepo, clock);
 
     const note = Note.create({
       id: validId,
@@ -92,13 +98,15 @@ describe('UpdateNoteUseCase', () => {
   });
 
   it('throws NoteValidationError (400) if new tag does not belong to teacher', async () => {
-    noteRepo.setValidTags(['my-tag']);
+    await tagRepo.save(
+      Tag.create({ id: tagId1, accountId, name: 'My tag', tone: 'mint', now: initialTime }),
+    );
 
     await expect(
       useCase.execute({
         id: validId,
         accountId,
-        tagIds: ['alien-tag'],
+        tagIds: [foreignTagId],
       }),
     ).rejects.toThrow(NoteValidationError);
   });

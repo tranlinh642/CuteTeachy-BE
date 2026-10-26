@@ -14,7 +14,7 @@ export interface CreateInspirationProps {
   quoteVi: string;
   quoteEn: string;
   author?: string | null;
-  now?: Date;
+  now: Date;
 }
 
 export interface ReconstituteInspirationProps {
@@ -39,8 +39,11 @@ export class Inspiration {
     if (!props.quoteEn || typeof props.quoteEn !== 'string' || !props.quoteEn.trim()) {
       throw new InspirationValidationError('quoteEn is required');
     }
+    if (!props.now || !(props.now instanceof Date) || isNaN(props.now.getTime())) {
+      throw new InspirationValidationError('now is required and must be a valid Date');
+    }
 
-    const now = props.now ?? new Date();
+    const now = props.now;
 
     return new Inspiration({
       id: props.id.trim(),
@@ -54,6 +57,35 @@ export class Inspiration {
 
   public static reconstitute(props: ReconstituteInspirationProps): Inspiration {
     return new Inspiration({ ...props });
+  }
+
+  public update(
+    props: {
+      quoteVi?: string;
+      quoteEn?: string;
+      author?: string | null;
+    },
+    now: Date,
+  ): void {
+    if (!now || !(now instanceof Date) || isNaN(now.getTime())) {
+      throw new InspirationValidationError('now is required and must be a valid Date');
+    }
+    if (props.quoteVi !== undefined) {
+      if (!props.quoteVi || typeof props.quoteVi !== 'string' || !props.quoteVi.trim()) {
+        throw new InspirationValidationError('quoteVi is required');
+      }
+      this.props.quoteVi = props.quoteVi.trim();
+    }
+    if (props.quoteEn !== undefined) {
+      if (!props.quoteEn || typeof props.quoteEn !== 'string' || !props.quoteEn.trim()) {
+        throw new InspirationValidationError('quoteEn is required');
+      }
+      this.props.quoteEn = props.quoteEn.trim();
+    }
+    if (props.author !== undefined) {
+      this.props.author = props.author ? props.author.trim() : null;
+    }
+    this.props.updatedAt = now;
   }
 
   get id(): string {

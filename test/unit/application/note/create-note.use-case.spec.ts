@@ -1,5 +1,6 @@
 import { CreateNoteUseCase } from '../../../../src/application/note/create-note.use-case';
 import { FakeNoteRepository } from './fake-note.repository';
+import { FakeTagRepository } from '../tag/fake-tag.repository';
 import { FixedClock } from '../../../fakes/fixed-clock';
 import {
   EntityGoneError,
@@ -7,20 +8,26 @@ import {
 } from '../../../../src/domain/shared/sync.errors';
 import { NoteValidationError } from '../../../../src/domain/note/note.errors';
 import { Note } from '../../../../src/domain/note/note.entity';
+import { Tag } from '../../../../src/domain/tag/tag.entity';
 
 describe('CreateNoteUseCase', () => {
   let noteRepo: FakeNoteRepository;
+  let tagRepo: FakeTagRepository;
   let clock: FixedClock;
   let useCase: CreateNoteUseCase;
 
   const validId = '11111111-1111-4111-8111-111111111111';
+  const tagId1 = '22222222-2222-4222-8222-222222222222';
+  const tagId2 = '33333333-3333-4333-8333-333333333333';
+  const foreignTagId = '44444444-4444-4444-8444-444444444444';
   const accountId = 'teacher-1';
   const now = new Date('2026-10-26T10:00:00.000Z');
 
   beforeEach(() => {
     noteRepo = new FakeNoteRepository();
+    tagRepo = new FakeTagRepository();
     clock = new FixedClock(now);
-    useCase = new CreateNoteUseCase(noteRepo, clock);
+    useCase = new CreateNoteUseCase(noteRepo, tagRepo, clock);
   });
 
   it('creates a new note successfully (201)', async () => {
@@ -95,30 +102,37 @@ describe('CreateNoteUseCase', () => {
   });
 
   it('throws NoteValidationError (400) when tag does not belong to teacher', async () => {
-    noteRepo.setValidTags(['valid-tag-1']);
+    await tagRepo.save(
+      Tag.create({ id: tagId1, accountId, name: 'Tag 1', tone: 'mint', now }),
+    );
 
     await expect(
       useCase.execute({
         id: validId,
         accountId,
         title: 'Note gắn tag lạ',
-        tagIds: ['foreign-tag'],
+        tagIds: [foreignTagId],
       }),
     ).rejects.toThrow(NoteValidationError);
   });
 
   it('creates note with valid tags successfully', async () => {
-    noteRepo.setValidTags(['tag-1', 'tag-2']);
+    await tagRepo.save(
+      Tag.create({ id: tagId1, accountId, name: 'Tag 1', tone: 'mint', now }),
+    );
+    await tagRepo.save(
+      Tag.create({ id: tagId2, accountId, name: 'Tag 2', tone: 'rose', now }),
+    );
 
     const result = await useCase.execute({
       id: validId,
       accountId,
       title: 'Note gắn tag hợp lệ',
-      tagIds: ['tag-1', 'tag-2'],
+      tagIds: [tagId1, tagId2],
     });
 
     expect(result.created).toBe(true);
-    expect(result.note.tagIds).toEqual(['tag-1', 'tag-2']);
+    expect(result.note.tagIds).toEqual([tagId1, tagId2]);
   });
 
   it('calculates completed automatically based on checklist', async () => {

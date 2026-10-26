@@ -13,7 +13,10 @@ describe('GetSettingsUseCase', () => {
   });
 
   it('returns settings for the account with all 4 fields', async () => {
-    const settings = Settings.createDefault('teacher-1', { locale: 'vi' });
+    const settings = Settings.createDefault('teacher-1', {
+      locale: 'vi',
+      now: new Date('2026-10-26T10:00:00Z'),
+    });
     await settingsRepo.save(settings);
 
     const result = await useCase.execute({ accountId: 'teacher-1' });

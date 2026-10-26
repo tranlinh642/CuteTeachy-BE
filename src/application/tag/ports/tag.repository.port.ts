@@ -13,5 +13,6 @@ export interface TagRepository {
     deletedIds: string[];
   }>;
   save(tag: Tag): Promise<void>;
+  validateOwnership(accountId: string, tagIds: string[]): Promise<boolean>;
   deletePermanentlyBefore(threshold: Date): Promise<number>;
 }

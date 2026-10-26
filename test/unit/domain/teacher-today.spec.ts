@@ -1,5 +1,4 @@
 import { calculateTeacherToday } from '../../../src/domain/settings/teacher-today.helper';
-import { getTeacherToday } from '../../../src/application/settings/teacher-today.helper';
 import { FixedClock } from '../../fakes/fixed-clock';
 import { SettingsValidationError } from '../../../src/domain/settings/settings.errors';
 
@@ -86,12 +85,10 @@ describe("Teacher's Today Helper", () => {
       expect(() => calculateTeacherToday(now, 'Invalid/Zone')).toThrow(SettingsValidationError);
       expect(() => calculateTeacherToday(now, '')).toThrow(SettingsValidationError);
     });
-  });
 
-  describe('getTeacherToday with Clock port', () => {
-    it('accepts Clock port and computes local today', () => {
+    it('accepts Clock port now() and computes local today', () => {
       const clock = new FixedClock(new Date('2026-10-26T23:45:00.000Z'));
-      const teacherToday = getTeacherToday(clock, 'Asia/Ho_Chi_Minh');
+      const teacherToday = calculateTeacherToday(clock.now(), 'Asia/Ho_Chi_Minh');
 
       expect(teacherToday.dateString).toBe('2026-10-27');
       expect(teacherToday.year).toBe(2026);

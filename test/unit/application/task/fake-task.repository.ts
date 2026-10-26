@@ -21,29 +21,22 @@ function cloneTask(task: Task): Task {
 
 export class FakeTaskRepository implements TaskRepository {
   private tasks: Map<string, Task> = new Map();
-  private validTags: Map<string, { accountId: string; deleted: boolean }> = new Map();
 
-  snapshot(): { tasks: Map<string, Task>; validTags: Map<string, { accountId: string; deleted: boolean }> } {
+  snapshot(): { tasks: Map<string, Task> } {
     const copyTasks = new Map<string, Task>();
     for (const [id, task] of this.tasks.entries()) {
       copyTasks.set(id, cloneTask(task));
     }
     return {
       tasks: copyTasks,
-      validTags: new Map(this.validTags),
     };
   }
 
-  restore(snap: { tasks: Map<string, Task>; validTags: Map<string, { accountId: string; deleted: boolean }> }): void {
+  restore(snap: { tasks: Map<string, Task> }): void {
     this.tasks = new Map();
     for (const [id, task] of snap.tasks.entries()) {
       this.tasks.set(id, cloneTask(task));
     }
-    this.validTags = new Map(snap.validTags);
-  }
-
-  addValidTag(tagId: string, accountId: string, deleted = false): void {
-    this.validTags.set(tagId, { accountId, deleted });
   }
 
   async findById(id: string): Promise<Task | null> {
@@ -109,16 +102,6 @@ export class FakeTaskRepository implements TaskRepository {
       }
     }
     return count;
-  }
-
-  async validateTagOwnership(accountId: string, tagIds: string[]): Promise<boolean> {
-    for (const tagId of tagIds) {
-      const tagInfo = this.validTags.get(tagId);
-      if (!tagInfo || tagInfo.accountId !== accountId || tagInfo.deleted) {
-        return false;
-      }
-    }
-    return true;
   }
 
   async deletePermanentlyBefore(threshold: Date): Promise<number> {
