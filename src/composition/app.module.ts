@@ -11,6 +11,7 @@ import { TagModule } from './tag.module';
 import { TaskModule } from './task.module';
 import { SettingsModule } from './settings.module';
 import { NoteModule } from './note.module';
+import { InspirationModule } from './inspiration.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { NoteModule } from './note.module';
     TaskModule,
     SettingsModule,
     NoteModule,
+    InspirationModule,
   ],
 })
 export class AppModule {}

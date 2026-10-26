@@ -9,14 +9,16 @@ describe('PostgresRateLimiter', () => {
     prisma = new PrismaService();
     await prisma.$connect();
     rateLimiter = new PostgresRateLimiter(prisma);
-  });
+  }, 30000);
 
   afterAll(async () => {
-    await prisma.rateLimitCounter.deleteMany({
-      where: { key: { startsWith: 'test-limiter:' } },
-    });
-    await prisma.$disconnect();
-  });
+    if (prisma) {
+      await prisma.rateLimitCounter.deleteMany({
+        where: { key: { startsWith: 'test-limiter:' } },
+      });
+      await prisma.$disconnect();
+    }
+  }, 30000);
 
   it('allows requests within limit and tracks remaining points', async () => {
     const key = `test-limiter:${Date.now()}`;

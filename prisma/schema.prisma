@@ -256,3 +256,15 @@ model NoteTag {
   @@index([tagId])
   @@map("note_tags")
 }
+
+
+model Inspiration {
+  id        String   @id
+  quoteVi   String
+  quoteEn   String
+  author    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("inspirations")
+}

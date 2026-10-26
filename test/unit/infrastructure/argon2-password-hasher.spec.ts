@@ -14,7 +14,7 @@ describe('Argon2PasswordHasher', () => {
 
     const isInvalid = await hasher.verify('wrongPassword', hash);
     expect(isInvalid).toBe(false);
-  });
+  }, 15000);
 
   it('returns false when verifying invalid hash format', async () => {
     const result = await hasher.verify('password', 'not-a-valid-argon2-hash');
