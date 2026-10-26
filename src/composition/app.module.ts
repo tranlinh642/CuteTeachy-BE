@@ -7,6 +7,7 @@ import { AvatarModule } from './avatar.module';
 import { GoogleAuthModule } from './google-auth.module';
 import { EmailVerificationModule } from './email-verification.module';
 import { PasswordResetModule } from './password-reset.module';
+import { TagModule } from './tag.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { PasswordResetModule } from './password-reset.module';
     GoogleAuthModule,
     EmailVerificationModule,
     PasswordResetModule,
+    TagModule,
   ],
 })
 export class AppModule {}

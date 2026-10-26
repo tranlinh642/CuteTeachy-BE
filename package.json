@@ -17,7 +17,8 @@
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "purge:tags": "ts-node src/infrastructure/system/scripts/purge-deleted-tags.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1156.0",

@@ -11,6 +11,9 @@ export const DOMAIN_ERROR_STATUS_MAP: Record<string, HttpStatus> = {
   not_found: HttpStatus.NOT_FOUND, // 404
   email_taken: HttpStatus.CONFLICT, // 409
   conflict: HttpStatus.CONFLICT, // 409
+  id_conflict: HttpStatus.CONFLICT, // 409
+  tag_name_taken: HttpStatus.CONFLICT, // 409
+  gone: HttpStatus.GONE, // 410
   file_too_large: HttpStatus.PAYLOAD_TOO_LARGE, // 413
   unsupported_file_type: HttpStatus.UNSUPPORTED_MEDIA_TYPE, // 415
   rate_limited: HttpStatus.TOO_MANY_REQUESTS, // 429
