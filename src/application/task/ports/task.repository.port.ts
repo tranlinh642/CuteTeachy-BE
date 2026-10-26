@@ -1,0 +1,19 @@
+import type { Task } from '../../../domain/task/task.entity';
+
+export const TASK_REPOSITORY = Symbol('TASK_REPOSITORY');
+
+export interface TaskRepository {
+  findById(id: string): Promise<Task | null>;
+  findByAccountAndDateRange(
+    accountId: string,
+    from: string,
+    to: string,
+    updatedSince?: Date,
+  ): Promise<{
+    items: Task[];
+    deletedIds: string[];
+  }>;
+  save(task: Task): Promise<void>;
+  validateTagOwnership(accountId: string, tagIds: string[]): Promise<boolean>;
+  deletePermanentlyBefore(threshold: Date): Promise<number>;
+}
