@@ -4,7 +4,7 @@
 
 **Blocked by:** auth-profile BE-04 (Onboarding guard)
 
-**Status:** in-progress
+**Status:** done
 
 **Đọc:** SPEC-003 mục *Quy tắc đồng bộ chung*, *Kiểu dữ liệu* (Tag), *API* (tags), *Module BE*; ADR BE 0003; `AGENTS.md`.
 
