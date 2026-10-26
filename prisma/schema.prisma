@@ -23,6 +23,16 @@ enum TagTone {
   mint
 }
 
+enum TaskCategory {
+  school
+  personal
+}
+
+enum TaskPriority {
+  normal
+  high
+}
+
 model Account {
   id              String    @id @default(uuid())
   email           String    @unique
@@ -36,6 +46,7 @@ model Account {
   exchangeCodes     OneTimeExchangeCode[]
   verificationCodes VerificationCode[]
   tags              Tag[]
+  tasks             Task[]
 
   @@map("accounts")
 }
@@ -146,10 +157,48 @@ model Tag {
   deletedAt DateTime?
 
   account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  taskTags  TaskTag[]
 
   @@index([accountId])
   @@index([accountId, deletedAt])
   @@index([accountId, updatedAt])
   @@index([deletedAt])
   @@map("tags")
+}
+
+model Task {
+  id        String       @id
+  accountId String
+  title     String
+  notes     String?
+  date      String
+  time      String?
+  category  TaskCategory
+  priority  TaskPriority @default(normal)
+  completed Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  deletedAt DateTime?
+
+  account   Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  tags      TaskTag[]
+
+  @@index([accountId])
+  @@index([accountId, date])
+  @@index([accountId, deletedAt])
+  @@index([accountId, updatedAt])
+  @@index([deletedAt])
+  @@map("tasks")
+}
+
+model TaskTag {
+  taskId String
+  tagId  String
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+  @@index([tagId])
+  @@map("task_tags")
 }
