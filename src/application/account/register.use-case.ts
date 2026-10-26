@@ -13,6 +13,8 @@ import { RateLimiter } from './ports/rate-limiter.port';
 import { CodeHasher } from '../google-auth/ports/code-hasher.port';
 import { VerificationCodeRepository } from '../verification/ports/verification-code.repository.port';
 import { CodeGenerator } from '../verification/ports/code-generator.port';
+import { SettingsRepository } from '../settings/ports/settings.repository.port';
+import { Settings } from '../../domain/settings/settings.entity';
 import {
   buildEmailVerificationEmail,
   resolveLanguage,
@@ -42,6 +44,7 @@ export class RegisterUseCase {
     private readonly codeGenerator: CodeGenerator,
     private readonly rateLimitMax = 10,
     private readonly rateLimitWindowSeconds = 60,
+    private readonly settingsRepository?: SettingsRepository,
   ) {}
 
   async execute(input: RegisterInput): Promise<AuthSessionDto> {
@@ -78,6 +81,15 @@ export class RegisterUseCase {
 
     await this.accountRepository.createWithPassword(account, passwordHash);
 
+    const resolvedLocale = resolveLanguage(input.acceptLanguage);
+    if (this.settingsRepository) {
+      const defaultSettings = Settings.createDefault(account.id, {
+        locale: resolvedLocale,
+        now,
+      });
+      await this.settingsRepository.save(defaultSettings);
+    }
+
     const accessToken = await this.tokenService.createAccessToken({ sub: account.id });
     const refreshToken = await this.tokenService.createRefreshToken(input.remember);
     const familyId = this.idGenerator.next();
@@ -107,8 +119,8 @@ export class RegisterUseCase {
       maxAttempts: 5,
     });
 
-    const lang = resolveLanguage(input.acceptLanguage);
-    const emailContent = buildEmailVerificationEmail(code, lang);
+
+    const emailContent = buildEmailVerificationEmail(code, resolvedLocale);
     await this.mailer.sendEmail(
       account.email,
       emailContent.subject,

@@ -7,6 +7,7 @@ import { FakeTokenService } from '../../fakes/fake-token.service';
 import { FakeRateLimiter } from '../../fakes/fake-rate-limiter';
 import { FakeMailer } from '../../fakes/fake-mailer';
 import { FakeCodeGenerator } from '../../fakes/fake-code-generator';
+import { InMemorySettingsRepository } from '../../fakes/in-memory-settings.repository';
 import { SequentialIdGenerator } from '../../fakes/sequential-id-generator';
 import { FixedClock } from '../../fakes/fixed-clock';
 import { Sha256CodeHasher } from '../../../src/infrastructure/google-auth/sha256-code-hasher';
@@ -28,6 +29,7 @@ describe('RegisterUseCase', () => {
   let codeHasher: Sha256CodeHasher;
   let idGenerator: SequentialIdGenerator;
   let clock: FixedClock;
+  let settingsRepo: InMemorySettingsRepository;
   let useCase: RegisterUseCase;
 
   beforeEach(() => {
@@ -42,6 +44,7 @@ describe('RegisterUseCase', () => {
     codeHasher = new Sha256CodeHasher();
     idGenerator = new SequentialIdGenerator('id');
     clock = new FixedClock(new Date('2026-10-25T10:00:00.000Z'));
+    settingsRepo = new InMemorySettingsRepository();
 
     useCase = new RegisterUseCase(
       accountRepo,
@@ -55,6 +58,9 @@ describe('RegisterUseCase', () => {
       codeHasher,
       mailer,
       codeGenerator,
+      10,
+      60,
+      settingsRepo,
     );
   });
 
@@ -101,6 +107,14 @@ describe('RegisterUseCase', () => {
     expect(mailer.sentEmails[0].to).toBe('teacher@cute.com');
     expect(mailer.sentEmails[0].subject).toContain('654321');
     expect(mailer.sentEmails[0].html).toContain('654321');
+
+    // Default settings created according to Accept-Language (en)
+    const settings = await settingsRepo.findByAccountId(saved!.id);
+    expect(settings).not.toBeNull();
+    expect(settings?.locale).toBe('en');
+    expect(settings?.timeZone).toBe('Asia/Ho_Chi_Minh');
+    expect(settings?.pushEnabled).toBe(true);
+    expect(settings?.reminderLeadMinutes).toBe(15);
   });
 
   it('sends email in Vietnamese when Accept-Language is not English', async () => {
@@ -113,6 +127,13 @@ describe('RegisterUseCase', () => {
 
     expect(mailer.sentEmails).toHaveLength(1);
     expect(mailer.sentEmails[0].subject).toContain('Mã xác minh email của bạn');
+
+    const vnSaved = await accountRepo.findByEmail('vietnamese@cute.com');
+    const vnSettings = await settingsRepo.findByAccountId(vnSaved!.id);
+    expect(vnSettings?.locale).toBe('vi');
+    expect(vnSettings?.timeZone).toBe('Asia/Ho_Chi_Minh');
+    expect(vnSettings?.pushEnabled).toBe(true);
+    expect(vnSettings?.reminderLeadMinutes).toBe(15);
   });
 
   it('rejects duplicate email with EmailTakenError (email_taken) without sending email', async () => {

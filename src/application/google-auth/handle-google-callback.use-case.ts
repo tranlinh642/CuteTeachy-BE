@@ -7,6 +7,8 @@ import { IdGenerator } from '../shared/ports/id-generator.port';
 import { Clock } from '../shared/ports/clock.port';
 import { Account } from '../../domain/account/account.entity';
 import { Email } from '../../domain/account/email.vo';
+import { SettingsRepository } from '../settings/ports/settings.repository.port';
+import { Settings } from '../../domain/settings/settings.entity';
 
 export interface HandleGoogleCallbackInput {
   code?: string;
@@ -28,6 +30,7 @@ export class HandleGoogleCallbackUseCase {
     private readonly idGenerator: IdGenerator,
     private readonly clock: Clock,
     private readonly feUrl: string,
+    private readonly settingsRepository?: SettingsRepository,
   ) {}
 
   async execute(input: HandleGoogleCallbackInput): Promise<HandleGoogleCallbackOutput> {
@@ -93,6 +96,14 @@ export class HandleGoogleCallbackUseCase {
         });
 
         await this.googleAuthAccountRepository.createWithGoogle(account, userInfo.sub);
+
+        if (this.settingsRepository) {
+          const defaultSettings = Settings.createDefault(account.id, {
+            locale: 'vi',
+            now,
+          });
+          await this.settingsRepository.save(defaultSettings);
+        }
       }
     }
 

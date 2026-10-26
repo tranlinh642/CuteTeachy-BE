@@ -1,5 +1,10 @@
 import { Module } from '@nestjs/common';
 import { AccountModule } from './account.module';
+import { SettingsModule } from './settings.module';
+import {
+  SETTINGS_REPOSITORY,
+  SettingsRepository,
+} from '../application/settings/ports/settings.repository.port';
 import { CLOCK, Clock } from '../application/shared/ports/clock.port';
 import { ID_GENERATOR, IdGenerator } from '../application/shared/ports/id-generator.port';
 import { APP_CONFIG, AppConfig } from '../infrastructure/config/app.config';
@@ -54,7 +59,7 @@ import { ExchangeCodeUseCase } from '../application/google-auth/exchange-code.us
 import { GoogleAuthController } from '../presentation/http/google-auth/google-auth.controller';
 
 @Module({
-  imports: [AccountModule],
+  imports: [AccountModule, SettingsModule],
   controllers: [GoogleAuthController],
   providers: [
     {
@@ -101,6 +106,7 @@ import { GoogleAuthController } from '../presentation/http/google-auth/google-au
         idGenerator: IdGenerator,
         clock: Clock,
         config: AppConfig,
+        settingsRepo: SettingsRepository,
       ) =>
         new HandleGoogleCallbackUseCase(
           accountRepo,
@@ -111,6 +117,7 @@ import { GoogleAuthController } from '../presentation/http/google-auth/google-au
           idGenerator,
           clock,
           config.FE_URL,
+          settingsRepo,
         ),
       inject: [
         GOOGLE_AUTH_ACCOUNT_REPOSITORY,
@@ -121,6 +128,7 @@ import { GoogleAuthController } from '../presentation/http/google-auth/google-au
         ID_GENERATOR,
         CLOCK,
         APP_CONFIG,
+        SETTINGS_REPOSITORY,
       ],
     },
     {

@@ -8,6 +8,7 @@ import { IdGenerator } from '../../../src/application/shared/ports/id-generator.
 import { Clock } from '../../../src/application/shared/ports/clock.port';
 import { Account } from '../../../src/domain/account/account.entity';
 import { Email } from '../../../src/domain/account/email.vo';
+import { InMemorySettingsRepository } from '../../fakes/in-memory-settings.repository';
 
 describe('HandleGoogleCallbackUseCase', () => {
   const feUrl = 'http://localhost:3000';
@@ -208,6 +209,41 @@ describe('HandleGoogleCallbackUseCase', () => {
       expect(result.redirectUrl).toBe(
         'http://localhost:3000/auth/callback?code=random-one-time-code-12345',
       );
+    });
+
+    it('creates default settings with vi locale when registering new Account via Google', async () => {
+      const settingsRepo = new InMemorySettingsRepository();
+      const customUseCase = new HandleGoogleCallbackUseCase(
+        accountRepo,
+        exchangeCodeRepo,
+        googleClient,
+        stateSigner,
+        codeHasher,
+        idGenerator,
+        clock,
+        feUrl,
+        settingsRepo,
+      );
+
+      stateSigner.verify.mockReturnValue({ remember: true, nonce: 'nonce-new' });
+      googleClient.getUserInfo.mockResolvedValue(verifiedGoogleUser);
+      accountRepo.findByProviderSubject.mockResolvedValue(null);
+      accountRepo.findByEmail.mockResolvedValue(null);
+
+      await customUseCase.execute({
+        code: 'google-code-new',
+        state: 'valid-state-new',
+      });
+
+      expect(accountRepo.createWithGoogle).toHaveBeenCalledTimes(1);
+      const createdAccount = accountRepo.createWithGoogle.mock.calls[0][0];
+
+      const settings = await settingsRepo.findByAccountId(createdAccount.id);
+      expect(settings).not.toBeNull();
+      expect(settings?.locale).toBe('vi');
+      expect(settings?.timeZone).toBe('Asia/Ho_Chi_Minh');
+      expect(settings?.pushEnabled).toBe(true);
+      expect(settings?.reminderLeadMinutes).toBe(15);
     });
 
     it('finds existing Account by subject on subsequent Google logins', async () => {

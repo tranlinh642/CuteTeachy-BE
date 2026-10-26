@@ -42,9 +42,14 @@ import { AuthController } from '../presentation/http/account/auth.controller';
 import { JwtAuthGuard } from '../presentation/http/auth/jwt-auth.guard';
 import { OnboardingGuard } from '../presentation/http/auth/onboarding.guard';
 import { VerificationModule } from './verification.module';
+import {
+  SETTINGS_REPOSITORY,
+  SettingsRepository,
+} from '../application/settings/ports/settings.repository.port';
+import { SettingsModule } from './settings.module';
 
 @Module({
-  imports: [VerificationModule],
+  imports: [VerificationModule, SettingsModule],
   controllers: [AuthController],
   providers: [
     {
@@ -89,6 +94,7 @@ import { VerificationModule } from './verification.module';
         codeHasher: CodeHasher,
         mailer: Mailer,
         codeGenerator: CodeGenerator,
+        settingsRepo: SettingsRepository,
       ) =>
         new RegisterUseCase(
           accountRepo,
@@ -102,6 +108,9 @@ import { VerificationModule } from './verification.module';
           codeHasher,
           mailer,
           codeGenerator,
+          10,
+          60,
+          settingsRepo,
         ),
       inject: [
         ACCOUNT_REPOSITORY,
@@ -115,6 +124,7 @@ import { VerificationModule } from './verification.module';
         CODE_HASHER,
         MAILER,
         CODE_GENERATOR,
+        SETTINGS_REPOSITORY,
       ],
     },
     {
