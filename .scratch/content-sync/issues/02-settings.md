@@ -4,7 +4,7 @@
 
 **Blocked by:** auth-profile BE-03 (Account)
 
-**Status:** in-progress
+**Status:** done
 
 **Đọc:** SPEC-003 mục *Kiểu dữ liệu* (Settings), *Quy tắc domain* (Settings mặc định), *API* (`/me/settings`); BA §4.
 
