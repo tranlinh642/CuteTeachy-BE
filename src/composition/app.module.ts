@@ -10,6 +10,7 @@ import { PasswordResetModule } from './password-reset.module';
 import { TagModule } from './tag.module';
 import { TaskModule } from './task.module';
 import { SettingsModule } from './settings.module';
+import { NoteModule } from './note.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { SettingsModule } from './settings.module';
     TagModule,
     TaskModule,
     SettingsModule,
+    NoteModule,
   ],
 })
 export class AppModule {}

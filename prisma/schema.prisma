@@ -48,6 +48,7 @@ model Account {
   tags              Tag[]
   tasks             Task[]
   settings          Settings?
+  notes             Note[]
 
   @@map("accounts")
 }
@@ -159,6 +160,7 @@ model Tag {
 
   account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   taskTags  TaskTag[]
+  noteTags  NoteTag[]
 
   @@index([accountId])
   @@index([accountId, deletedAt])
@@ -217,4 +219,40 @@ model Settings {
   account             Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@map("settings")
+}
+
+model Note {
+  id            String    @id
+  accountId     String
+  title         String
+  content       String?
+  checklist     Json      @default("[]")
+  imageUrl      String?
+  dueDate       String?
+  completed     Boolean   @default(false)
+  searchContent String    @default("")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  account       Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  tags          NoteTag[]
+
+  @@index([accountId])
+  @@index([accountId, deletedAt])
+  @@index([accountId, updatedAt])
+  @@index([deletedAt])
+  @@map("notes")
+}
+
+model NoteTag {
+  noteId String
+  tagId  String
+
+  note   Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, tagId])
+  @@index([tagId])
+  @@map("note_tags")
 }
