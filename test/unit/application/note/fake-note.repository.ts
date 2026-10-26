@@ -6,16 +6,53 @@ import {
 } from '../../../../src/application/note/ports/note.repository.port';
 import { NoteCursor } from '../../../../src/application/note/note.dto';
 
+function cloneNote(note: Note): Note {
+  return Note.reconstitute({
+    id: note.id,
+    accountId: note.accountId,
+    title: note.title,
+    content: note.content,
+    checklist: [...note.checklist],
+    imageUrl: note.imageUrl,
+    dueDate: note.dueDate,
+    completed: note.completed,
+    tagIds: [...note.tagIds],
+    createdAt: note.createdAt,
+    updatedAt: note.updatedAt,
+    deletedAt: note.deletedAt ?? null,
+  });
+}
+
 export class FakeNoteRepository implements NoteRepository {
   private notes = new Map<string, Note>();
   private validTagIds = new Set<string>();
+
+  snapshot(): { notes: Map<string, Note>; validTagIds: Set<string> } {
+    const copyNotes = new Map<string, Note>();
+    for (const [id, note] of this.notes.entries()) {
+      copyNotes.set(id, cloneNote(note));
+    }
+    return {
+      notes: copyNotes,
+      validTagIds: new Set(this.validTagIds),
+    };
+  }
+
+  restore(snap: { notes: Map<string, Note>; validTagIds: Set<string> }): void {
+    this.notes = new Map();
+    for (const [id, note] of snap.notes.entries()) {
+      this.notes.set(id, cloneNote(note));
+    }
+    this.validTagIds = new Set(snap.validTagIds);
+  }
 
   setValidTags(tagIds: string[]): void {
     this.validTagIds = new Set(tagIds);
   }
 
   async findById(id: string): Promise<Note | null> {
-    return this.notes.get(id) ?? null;
+    const note = this.notes.get(id);
+    return note ? cloneNote(note) : null;
   }
 
   async findByAccount(
@@ -64,7 +101,7 @@ export class FakeNoteRepository implements NoteRepository {
       };
     }
 
-    return { items, nextCursor };
+    return { items: items.map(cloneNote), nextCursor };
   }
 
   async findDeltaByAccount(
@@ -78,7 +115,8 @@ export class FakeNoteRepository implements NoteRepository {
 
     const items = all
       .filter((n) => !n.isDeleted())
-      .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime());
+      .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
+      .map(cloneNote);
 
     const deletedIds = all.filter((n) => n.isDeleted()).map((n) => n.id);
 
@@ -86,7 +124,33 @@ export class FakeNoteRepository implements NoteRepository {
   }
 
   async save(note: Note): Promise<void> {
-    this.notes.set(note.id, note);
+    this.notes.set(note.id, cloneNote(note));
+  }
+
+  async unlinkTag(accountId: string, tagId: string, now: Date): Promise<number> {
+    let count = 0;
+    for (const [id, note] of this.notes.entries()) {
+      if (note.accountId === accountId && note.tagIds.includes(tagId)) {
+        const nextTagIds = note.tagIds.filter((t) => t !== tagId);
+        const updated = Note.reconstitute({
+          id: note.id,
+          accountId: note.accountId,
+          title: note.title,
+          content: note.content,
+          checklist: [...note.checklist],
+          imageUrl: note.imageUrl,
+          dueDate: note.dueDate,
+          completed: note.completed,
+          tagIds: nextTagIds,
+          createdAt: note.createdAt,
+          updatedAt: now,
+          deletedAt: note.deletedAt ?? null,
+        });
+        this.notes.set(id, updated);
+        count++;
+      }
+    }
+    return count;
   }
 
   async validateTagOwnership(_accountId: string, tagIds: string[]): Promise<boolean> {

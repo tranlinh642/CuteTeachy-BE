@@ -1,18 +1,46 @@
 import { Tag } from '../../../../src/domain/tag/tag.entity';
 import { TagRepository } from '../../../../src/application/tag/ports/tag.repository.port';
 
+function cloneTag(tag: Tag): Tag {
+  return Tag.reconstitute({
+    id: tag.id,
+    accountId: tag.accountId,
+    name: tag.name,
+    tone: tag.tone,
+    createdAt: tag.createdAt,
+    updatedAt: tag.updatedAt,
+    deletedAt: tag.deletedAt ?? null,
+  });
+}
+
 export class FakeTagRepository implements TagRepository {
   private tags: Map<string, Tag> = new Map();
 
+  snapshot(): Map<string, Tag> {
+    const copy = new Map<string, Tag>();
+    for (const [id, tag] of this.tags.entries()) {
+      copy.set(id, cloneTag(tag));
+    }
+    return copy;
+  }
+
+  restore(snapshot: Map<string, Tag>): void {
+    this.tags = new Map();
+    for (const [id, tag] of snapshot.entries()) {
+      this.tags.set(id, cloneTag(tag));
+    }
+  }
+
   async findById(id: string): Promise<Tag | null> {
-    return this.tags.get(id) ?? null;
+    const tag = this.tags.get(id);
+    return tag ? cloneTag(tag) : null;
   }
 
   async findByName(accountId: string, name: string): Promise<Tag | null> {
     const target = name.trim().toLowerCase();
     for (const tag of this.tags.values()) {
       if (tag.accountId === accountId && !tag.isDeleted() && tag.name.toLowerCase() === target) {
-        return tag;
+        return cloneTag(tag);
       }
     }
     return null;
@@ -30,11 +58,11 @@ export class FakeTagRepository implements TagRepository {
 
       if (!updatedSince) {
         if (!tag.isDeleted()) {
-          items.push(tag);
+          items.push(cloneTag(tag));
         }
       } else {
         if (!tag.isDeleted() && tag.updatedAt >= updatedSince) {
-          items.push(tag);
+          items.push(cloneTag(tag));
         } else if (tag.isDeleted() && tag.updatedAt >= updatedSince) {
           deletedIds.push(tag.id);
         }
@@ -45,7 +73,7 @@ export class FakeTagRepository implements TagRepository {
   }
 
   async save(tag: Tag): Promise<void> {
-    this.tags.set(tag.id, tag);
+    this.tags.set(tag.id, cloneTag(tag));
   }
 
   async deletePermanentlyBefore(threshold: Date): Promise<number> {

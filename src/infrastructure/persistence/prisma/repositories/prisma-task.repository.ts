@@ -1,12 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { TaskRepository } from '../../../../application/task/ports/task.repository.port';
 import { Task } from '../../../../domain/task/task.entity';
 import { PrismaService } from '../prisma.service';
 import { TaskMapper } from '../mappers/task.mapper';
+import { Prisma } from '@prisma/client';
+
+export type PrismaTaskClient = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class PrismaTaskRepository implements TaskRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaTaskClient) {}
 
   async findById(id: string): Promise<Task | null> {
     const raw = await this.prisma.task.findUnique({
@@ -76,7 +79,7 @@ export class PrismaTaskRepository implements TaskRepository {
   }
 
   async save(task: Task): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+    const runInTx = async (tx: PrismaTaskClient) => {
       await tx.task.upsert({
         where: { id: task.id },
         create: TaskMapper.toPrismaCreate(task),
@@ -96,7 +99,47 @@ export class PrismaTaskRepository implements TaskRepository {
           skipDuplicates: true,
         });
       }
+    };
+
+    if ('$transaction' in this.prisma && typeof (this.prisma as any).$transaction === 'function') {
+      await (this.prisma as PrismaService).$transaction(async (tx) => runInTx(tx));
+    } else {
+      await runInTx(this.prisma);
+    }
+  }
+
+  async unlinkTag(accountId: string, tagId: string, now: Date): Promise<number> {
+    const matching = await this.prisma.taskTag.findMany({
+      where: {
+        tagId,
+        task: { accountId },
+      },
+      select: { taskId: true },
     });
+
+    if (matching.length === 0) {
+      return 0;
+    }
+
+    const taskIds = matching.map((m) => m.taskId);
+
+    await this.prisma.taskTag.deleteMany({
+      where: {
+        tagId,
+        taskId: { in: taskIds },
+      },
+    });
+
+    await this.prisma.task.updateMany({
+      where: {
+        id: { in: taskIds },
+      },
+      data: {
+        updatedAt: now,
+      },
+    });
+
+    return taskIds.length;
   }
 
   async validateTagOwnership(accountId: string, tagIds: string[]): Promise<boolean> {

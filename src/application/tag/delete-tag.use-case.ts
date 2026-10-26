@@ -1,6 +1,6 @@
 import { EntityNotFoundError } from '../../domain/shared/sync.errors';
 import type { Clock } from '../shared/ports/clock.port';
-import type { TagRepository } from './ports/tag.repository.port';
+import type { UnitOfWork } from '../shared/ports/unit-of-work.port';
 
 export interface DeleteTagInput {
   id: string;
@@ -9,22 +9,29 @@ export interface DeleteTagInput {
 
 export class DeleteTagUseCase {
   constructor(
-    private readonly tagRepo: TagRepository,
+    private readonly uow: UnitOfWork,
     private readonly clock: Clock,
   ) {}
 
   async execute(input: DeleteTagInput): Promise<void> {
-    const tag = await this.tagRepo.findById(input.id);
+    const now = this.clock.now();
 
-    if (!tag || tag.accountId !== input.accountId) {
-      throw new EntityNotFoundError('Tag not found');
-    }
+    await this.uow.run(async (repos) => {
+      const tag = await repos.tagRepo.findById(input.id);
 
-    if (tag.isDeleted()) {
-      return;
-    }
+      if (!tag || tag.accountId !== input.accountId) {
+        throw new EntityNotFoundError('Tag not found');
+      }
 
-    tag.delete(this.clock.now());
-    await this.tagRepo.save(tag);
+      if (tag.isDeleted()) {
+        return;
+      }
+
+      tag.delete(now);
+      await repos.tagRepo.save(tag);
+
+      await repos.taskRepo.unlinkTag(input.accountId, input.id, now);
+      await repos.noteRepo.unlinkTag(input.accountId, input.id, now);
+    });
   }
 }
