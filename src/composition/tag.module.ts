@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { CLOCK, Clock } from '../application/shared/ports/clock.port';
+import { UNIT_OF_WORK, UnitOfWork } from '../application/shared/ports/unit-of-work.port';
 import { TAG_REPOSITORY, TagRepository } from '../application/tag/ports/tag.repository.port';
 import { CreateTagUseCase } from '../application/tag/create-tag.use-case';
 import { UpdateTagUseCase } from '../application/tag/update-tag.use-case';
@@ -28,8 +29,8 @@ import { TagController } from '../presentation/http/tag/tag.controller';
     },
     {
       provide: DeleteTagUseCase,
-      useFactory: (tagRepo: TagRepository, clock: Clock) => new DeleteTagUseCase(tagRepo, clock),
-      inject: [TAG_REPOSITORY, CLOCK],
+      useFactory: (uow: UnitOfWork, clock: Clock) => new DeleteTagUseCase(uow, clock),
+      inject: [UNIT_OF_WORK, CLOCK],
     },
     {
       provide: ListTagsUseCase,

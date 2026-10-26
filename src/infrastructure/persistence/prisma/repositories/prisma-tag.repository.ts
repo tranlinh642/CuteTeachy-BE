@@ -1,12 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { TagRepository } from '../../../../application/tag/ports/tag.repository.port';
 import { Tag } from '../../../../domain/tag/tag.entity';
 import { PrismaService } from '../prisma.service';
 import { TagMapper } from '../mappers/tag.mapper';
+import { Prisma } from '@prisma/client';
+
+export type PrismaTagClient = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class PrismaTagRepository implements TagRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaTagClient) {}
 
   async findById(id: string): Promise<Tag | null> {
     const raw = await this.prisma.tag.findUnique({

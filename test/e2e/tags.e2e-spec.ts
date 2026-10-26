@@ -24,6 +24,10 @@ describe('Tags Sync Foundation E2E (HTTP API with real Postgres)', () => {
   });
 
   beforeEach(async () => {
+    await prisma.taskTag.deleteMany();
+    await prisma.noteTag.deleteMany();
+    await prisma.task.deleteMany();
+    await prisma.note.deleteMany();
     await prisma.tag.deleteMany();
     await prisma.rateLimitCounter.deleteMany();
     await prisma.refreshToken.deleteMany();
@@ -368,6 +372,137 @@ describe('Tags Sync Foundation E2E (HTTP API with real Postgres)', () => {
         .delete(`/tags/${tagId}`)
         .set('Authorization', `Bearer ${teacher2.token}`)
         .expect(404);
+    });
+
+    it('unlinks tag from tasks and notes and updates their updatedAt in a single transaction', async () => {
+      const { token } = await createTeacher('teacher1@example.com');
+
+      const tagA = '11111111-1111-4111-8111-111111111111';
+      const tagB = '22222222-2222-4222-8222-222222222222';
+      const taskId1 = '33333333-3333-4333-8333-333333333333';
+      const taskId2 = '44444444-4444-4444-8444-444444444444';
+      const noteId1 = '55555555-5555-4555-8555-555555555555';
+      const noteId2 = '66666666-6666-4666-8666-666666666666';
+
+      // 1. Create tags
+      await request(app.getHttpServer())
+        .post('/tags')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ id: tagA, name: 'Toán', tone: 'pink' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/tags')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ id: tagB, name: 'Văn', tone: 'blue' })
+        .expect(201);
+
+      // 2. Create tasks (Task 1 has tagA & tagB, Task 2 has only tagB)
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: taskId1,
+          title: 'Soạn đề Toán và Văn',
+          date: '2026-10-26',
+          category: 'school',
+          tagIds: [tagA, tagB],
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: taskId2,
+          title: 'Họp môn Văn',
+          date: '2026-10-26',
+          category: 'school',
+          tagIds: [tagB],
+        })
+        .expect(201);
+
+      // 3. Create notes (Note 1 has tagA, Note 2 has tagB)
+      await request(app.getHttpServer())
+        .post('/notes')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: noteId1,
+          title: 'Ghi chú Toán 10',
+          content: 'Nội dung toán',
+          tagIds: [tagA],
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/notes')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: noteId2,
+          title: 'Ghi chú Văn 10',
+          content: 'Nội dung văn',
+          tagIds: [tagB],
+        })
+        .expect(201);
+
+      // Get sync checkpoint from GET /tags
+      const tagsList = await request(app.getHttpServer())
+        .get('/tags')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const syncCheckpoint = tagsList.body.serverTime;
+
+      // Small delay to ensure timestamp separation for delta sync
+      await new Promise((r) => setTimeout(r, 50));
+
+      // 4. Delete tagA
+      await request(app.getHttpServer())
+        .delete(`/tags/${tagA}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(204);
+
+      // 5. Verify GET /tasks?from=2026-10-01&to=2026-10-31&updatedSince=${syncCheckpoint}
+      const taskDeltaRes = await request(app.getHttpServer())
+        .get(`/tasks?from=2026-10-01&to=2026-10-31&updatedSince=${encodeURIComponent(syncCheckpoint)}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(taskDeltaRes.body.items).toHaveLength(1);
+      expect(taskDeltaRes.body.items[0].id).toBe(taskId1);
+      expect(taskDeltaRes.body.items[0].tagIds).toEqual([tagB]);
+
+      // Verify GET /tasks full list
+      const allTasksRes = await request(app.getHttpServer())
+        .get('/tasks?from=2026-10-01&to=2026-10-31')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const returnedTask1 = allTasksRes.body.items.find((t: any) => t.id === taskId1);
+      const returnedTask2 = allTasksRes.body.items.find((t: any) => t.id === taskId2);
+      expect(returnedTask1.tagIds).toEqual([tagB]);
+      expect(returnedTask2.tagIds).toEqual([tagB]);
+
+      // 6. Verify GET /notes?updatedSince=${syncCheckpoint}
+      const noteDeltaRes = await request(app.getHttpServer())
+        .get(`/notes?updatedSince=${encodeURIComponent(syncCheckpoint)}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(noteDeltaRes.body.items).toHaveLength(1);
+      expect(noteDeltaRes.body.items[0].id).toBe(noteId1);
+      expect(noteDeltaRes.body.items[0].tagIds).toEqual([]);
+
+      // Verify GET /notes full list
+      const allNotesRes = await request(app.getHttpServer())
+        .get('/notes')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const returnedNote1 = allNotesRes.body.items.find((n: any) => n.id === noteId1);
+      const returnedNote2 = allNotesRes.body.items.find((n: any) => n.id === noteId2);
+      expect(returnedNote1.tagIds).toEqual([]);
+      expect(returnedNote2.tagIds).toEqual([tagB]);
     });
   });
 

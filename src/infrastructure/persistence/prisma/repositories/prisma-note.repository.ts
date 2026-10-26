@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   FindNotesOptions,
   NoteRepository,
@@ -10,9 +10,11 @@ import { PrismaService } from '../prisma.service';
 import { NoteMapper } from '../mappers/note.mapper';
 import { Prisma } from '@prisma/client';
 
+export type PrismaNoteClient = PrismaService | Prisma.TransactionClient;
+
 @Injectable()
 export class PrismaNoteRepository implements NoteRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaNoteClient) {}
 
   async findById(id: string): Promise<Note | null> {
     const raw = await this.prisma.note.findUnique({
@@ -111,7 +113,7 @@ export class PrismaNoteRepository implements NoteRepository {
   }
 
   async save(note: Note): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+    const runInTx = async (tx: PrismaNoteClient) => {
       await tx.note.upsert({
         where: { id: note.id },
         create: NoteMapper.toPrismaCreate(note),
@@ -131,7 +133,47 @@ export class PrismaNoteRepository implements NoteRepository {
           skipDuplicates: true,
         });
       }
+    };
+
+    if ('$transaction' in this.prisma && typeof (this.prisma as any).$transaction === 'function') {
+      await (this.prisma as PrismaService).$transaction(async (tx) => runInTx(tx));
+    } else {
+      await runInTx(this.prisma);
+    }
+  }
+
+  async unlinkTag(accountId: string, tagId: string, now: Date): Promise<number> {
+    const matching = await this.prisma.noteTag.findMany({
+      where: {
+        tagId,
+        note: { accountId },
+      },
+      select: { noteId: true },
     });
+
+    if (matching.length === 0) {
+      return 0;
+    }
+
+    const noteIds = matching.map((m) => m.noteId);
+
+    await this.prisma.noteTag.deleteMany({
+      where: {
+        tagId,
+        noteId: { in: noteIds },
+      },
+    });
+
+    await this.prisma.note.updateMany({
+      where: {
+        id: { in: noteIds },
+      },
+      data: {
+        updatedAt: now,
+      },
+    });
+
+    return noteIds.length;
   }
 
   async validateTagOwnership(accountId: string, tagIds: string[]): Promise<boolean> {
