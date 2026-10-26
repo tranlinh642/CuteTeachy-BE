@@ -4,7 +4,7 @@
 
 **Blocked by:** S3-BE-03, S3-BE-04
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 **Đọc:** SPEC-003 mục *Quy tắc đồng bộ chung* (thay đổi gián tiếp), *API* (tags); `docs/architecture/design-patterns.md` (Unit of Work).
 
