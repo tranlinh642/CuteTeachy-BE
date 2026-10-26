@@ -76,6 +76,20 @@ export class FakeTagRepository implements TagRepository {
     this.tags.set(tag.id, cloneTag(tag));
   }
 
+  async validateOwnership(accountId: string, tagIds: string[]): Promise<boolean> {
+    if (!tagIds || tagIds.length === 0) {
+      return true;
+    }
+    const uniqueIds = Array.from(new Set(tagIds));
+    for (const id of uniqueIds) {
+      const tag = this.tags.get(id);
+      if (!tag || tag.accountId !== accountId || tag.isDeleted()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   async deletePermanentlyBefore(threshold: Date): Promise<number> {
     let count = 0;
     for (const [id, tag] of Array.from(this.tags.entries())) {

@@ -176,21 +176,6 @@ export class PrismaNoteRepository implements NoteRepository {
     return noteIds.length;
   }
 
-  async validateTagOwnership(accountId: string, tagIds: string[]): Promise<boolean> {
-    if (!tagIds || tagIds.length === 0) {
-      return true;
-    }
-    const uniqueIds = Array.from(new Set(tagIds));
-    const count = await this.prisma.tag.count({
-      where: {
-        id: { in: uniqueIds },
-        accountId,
-        deletedAt: null,
-      },
-    });
-    return count === uniqueIds.length;
-  }
-
   async deletePermanentlyBefore(threshold: Date): Promise<number> {
     const result = await this.prisma.note.deleteMany({
       where: {

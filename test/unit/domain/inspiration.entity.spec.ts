@@ -2,8 +2,9 @@ import { Inspiration } from '../../../src/domain/inspiration/inspiration.entity'
 import { InspirationValidationError } from '../../../src/domain/inspiration/inspiration.errors';
 
 describe('Inspiration Entity', () => {
+  const now = new Date('2026-10-26T12:00:00Z');
+
   it('creates a valid inspiration entity', () => {
-    const now = new Date('2026-10-26T12:00:00Z');
     const inspiration = Inspiration.create({
       id: 'insp-1',
       quoteVi: 'Ảnh hưởng của một người thầy tốt không bao giờ phai nhạt.',
@@ -29,6 +30,7 @@ describe('Inspiration Entity', () => {
       id: 'insp-2',
       quoteVi: 'Dạy học là gieo hạt giống cho ngày mai.',
       quoteEn: 'To teach is to touch a life forever.',
+      now,
     });
 
     expect(inspiration.author).toBeNull();
@@ -40,6 +42,7 @@ describe('Inspiration Entity', () => {
         id: '',
         quoteVi: 'Vi',
         quoteEn: 'En',
+        now,
       }),
     ).toThrow(InspirationValidationError);
   });
@@ -50,6 +53,7 @@ describe('Inspiration Entity', () => {
         id: 'insp-1',
         quoteVi: '  ',
         quoteEn: 'En',
+        now,
       }),
     ).toThrow(InspirationValidationError);
   });
@@ -60,7 +64,18 @@ describe('Inspiration Entity', () => {
         id: 'insp-1',
         quoteVi: 'Vi',
         quoteEn: '',
+        now,
       }),
+    ).toThrow(InspirationValidationError);
+  });
+
+  it('throws validation error when now is missing or invalid', () => {
+    expect(() =>
+      Inspiration.create({
+        id: 'insp-1',
+        quoteVi: 'Vi',
+        quoteEn: 'En',
+      } as any),
     ).toThrow(InspirationValidationError);
   });
 
@@ -82,5 +97,20 @@ describe('Inspiration Entity', () => {
     expect(inspiration.author).toBe('Author Name');
     expect(inspiration.createdAt).toEqual(createdAt);
     expect(inspiration.updatedAt).toEqual(updatedAt);
+  });
+
+  it('updates inspiration and refreshes updatedAt with required now', () => {
+    const inspiration = Inspiration.create({
+      id: 'insp-1',
+      quoteVi: 'Cũ Vi',
+      quoteEn: 'Old En',
+      now,
+    });
+
+    const updateTime = new Date('2026-10-26T14:00:00Z');
+    inspiration.update({ quoteVi: 'Mới Vi' }, updateTime);
+
+    expect(inspiration.quoteVi).toBe('Mới Vi');
+    expect(inspiration.updatedAt).toEqual(updateTime);
   });
 });

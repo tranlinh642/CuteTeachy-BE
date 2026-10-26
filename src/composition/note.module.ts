@@ -4,14 +4,17 @@ import {
   NOTE_REPOSITORY,
   NoteRepository,
 } from '../application/note/ports/note.repository.port';
+import { TAG_REPOSITORY, TagRepository } from '../application/tag/ports/tag.repository.port';
 import { CreateNoteUseCase } from '../application/note/create-note.use-case';
 import { UpdateNoteUseCase } from '../application/note/update-note.use-case';
 import { DeleteNoteUseCase } from '../application/note/delete-note.use-case';
 import { ListNotesUseCase } from '../application/note/list-notes.use-case';
 import { PrismaNoteRepository } from '../infrastructure/persistence/prisma/repositories/prisma-note.repository';
 import { NoteController } from '../presentation/http/note/note.controller';
+import { TagModule } from './tag.module';
 
 @Module({
+  imports: [TagModule],
   controllers: [NoteController],
   providers: [
     {
@@ -20,15 +23,15 @@ import { NoteController } from '../presentation/http/note/note.controller';
     },
     {
       provide: CreateNoteUseCase,
-      useFactory: (noteRepo: NoteRepository, clock: Clock) =>
-        new CreateNoteUseCase(noteRepo, clock),
-      inject: [NOTE_REPOSITORY, CLOCK],
+      useFactory: (noteRepo: NoteRepository, tagRepo: TagRepository, clock: Clock) =>
+        new CreateNoteUseCase(noteRepo, tagRepo, clock),
+      inject: [NOTE_REPOSITORY, TAG_REPOSITORY, CLOCK],
     },
     {
       provide: UpdateNoteUseCase,
-      useFactory: (noteRepo: NoteRepository, clock: Clock) =>
-        new UpdateNoteUseCase(noteRepo, clock),
-      inject: [NOTE_REPOSITORY, CLOCK],
+      useFactory: (noteRepo: NoteRepository, tagRepo: TagRepository, clock: Clock) =>
+        new UpdateNoteUseCase(noteRepo, tagRepo, clock),
+      inject: [NOTE_REPOSITORY, TAG_REPOSITORY, CLOCK],
     },
     {
       provide: DeleteNoteUseCase,

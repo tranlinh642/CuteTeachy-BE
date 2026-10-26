@@ -544,6 +544,40 @@ describe('Tasks E2E (HTTP API with real Postgres)', () => {
       expect(patchRes.body.tagIds).toEqual([tagId]);
     });
 
+    it('allows clearing notes and time by passing null', async () => {
+      const { token } = await createTeacher('teacher-clear@example.com');
+      const clearTaskId = '33333333-3333-4333-8333-333333333333';
+
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: clearTaskId,
+          title: 'Task co notes va time',
+          notes: 'Ban dau',
+          time: '08:30',
+          date: '2026-10-27',
+          category: 'school',
+        })
+        .expect(201);
+
+      const patchRes = await request(app.getHttpServer())
+        .patch(`/tasks/${clearTaskId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          notes: null,
+          time: null,
+        })
+        .expect(200);
+
+      expect(patchRes.body.notes).toBeUndefined();
+      expect(patchRes.body.time).toBeUndefined();
+
+      const inDb = await prisma.task.findUnique({ where: { id: clearTaskId } });
+      expect(inDb?.notes).toBeNull();
+      expect(inDb?.time).toBeNull();
+    });
+
     it('returns 404 when updating non-existent task', async () => {
       const { token } = await createTeacher('teacher1@example.com');
 

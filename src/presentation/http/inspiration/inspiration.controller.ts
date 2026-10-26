@@ -17,8 +17,6 @@ export class InspirationController {
     return {
       id: result.id,
       quote: result.quote,
-      quoteVi: result.quoteVi,
-      quoteEn: result.quoteEn,
       author: result.author,
     };
   }

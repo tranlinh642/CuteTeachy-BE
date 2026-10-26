@@ -3,6 +3,7 @@ import { Note } from '../../domain/note/note.entity';
 import { NoteValidationError } from '../../domain/note/note.errors';
 import type { Clock } from '../shared/ports/clock.port';
 import type { NoteRepository } from './ports/note.repository.port';
+import type { TagRepository } from '../tag/ports/tag.repository.port';
 import { NoteDto, toNoteDto } from './note.dto';
 
 export interface CreateNoteInput {
@@ -25,6 +26,7 @@ export interface CreateNoteOutput {
 export class CreateNoteUseCase {
   constructor(
     private readonly noteRepo: NoteRepository,
+    private readonly tagRepo: TagRepository,
     private readonly clock: Clock,
   ) {}
 
@@ -40,7 +42,7 @@ export class CreateNoteUseCase {
     }
 
     if (input.tagIds && input.tagIds.length > 0) {
-      const areTagsValid = await this.noteRepo.validateTagOwnership(
+      const areTagsValid = await this.tagRepo.validateOwnership(
         input.accountId,
         input.tagIds,
       );

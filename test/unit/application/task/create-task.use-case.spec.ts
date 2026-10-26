@@ -1,12 +1,15 @@
 import { CreateTaskUseCase } from '../../../../src/application/task/create-task.use-case';
 import { Task } from '../../../../src/domain/task/task.entity';
+import { Tag } from '../../../../src/domain/tag/tag.entity';
 import { TaskValidationError } from '../../../../src/domain/task/task.errors';
 import { EntityGoneError, IdConflictError } from '../../../../src/domain/shared/sync.errors';
 import { FixedClock } from '../../../fakes/fixed-clock';
 import { FakeTaskRepository } from './fake-task.repository';
+import { FakeTagRepository } from '../tag/fake-tag.repository';
 
 describe('CreateTaskUseCase', () => {
   let taskRepo: FakeTaskRepository;
+  let tagRepo: FakeTagRepository;
   let clock: FixedClock;
   let useCase: CreateTaskUseCase;
 
@@ -19,12 +22,15 @@ describe('CreateTaskUseCase', () => {
 
   beforeEach(() => {
     taskRepo = new FakeTaskRepository();
+    tagRepo = new FakeTagRepository();
     clock = new FixedClock(now);
-    useCase = new CreateTaskUseCase(taskRepo, clock);
+    useCase = new CreateTaskUseCase(taskRepo, tagRepo, clock);
   });
 
   it('creates a new task successfully (201 Created)', async () => {
-    taskRepo.addValidTag(tagId1, accountId);
+    await tagRepo.save(
+      Tag.create({ id: tagId1, accountId, name: 'Tag 1', tone: 'mint', now }),
+    );
 
     const result = await useCase.execute({
       id: taskId,
@@ -120,8 +126,18 @@ describe('CreateTaskUseCase', () => {
   });
 
   it('throws TaskValidationError (400) if any tag does not belong to user or is deleted', async () => {
-    taskRepo.addValidTag(tagId1, accountId, false);
-    taskRepo.addValidTag(tagId2, accountId, true); // deleted tag
+    await tagRepo.save(
+      Tag.create({ id: tagId1, accountId, name: 'Tag 1', tone: 'mint', now }),
+    );
+    const deletedTag = Tag.create({
+      id: tagId2,
+      accountId,
+      name: 'Tag 2',
+      tone: 'mint',
+      now,
+    });
+    deletedTag.delete(now);
+    await tagRepo.save(deletedTag);
 
     await expect(
       useCase.execute({
@@ -136,7 +152,9 @@ describe('CreateTaskUseCase', () => {
   });
 
   it('throws TaskValidationError (400) if tag belongs to another account', async () => {
-    taskRepo.addValidTag(tagId1, otherAccountId, false);
+    await tagRepo.save(
+      Tag.create({ id: tagId1, accountId: otherAccountId, name: 'Tag 1', tone: 'mint', now }),
+    );
 
     await expect(
       useCase.execute({

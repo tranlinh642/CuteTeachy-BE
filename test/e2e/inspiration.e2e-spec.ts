@@ -106,8 +106,8 @@ describe('Inspiration E2E (HTTP API with real Postgres)', () => {
       expect(res.body).toHaveProperty('quote');
       expect(res.body.quote).toHaveProperty('vi');
       expect(res.body.quote).toHaveProperty('en');
-      expect(res.body).toHaveProperty('quoteVi');
-      expect(res.body).toHaveProperty('quoteEn');
+      expect(res.body).not.toHaveProperty('quoteVi');
+      expect(res.body).not.toHaveProperty('quoteEn');
       expect(typeof res.body.id).toBe('string');
       expect(typeof res.body.quote.vi).toBe('string');
       expect(typeof res.body.quote.en).toBe('string');
@@ -131,8 +131,7 @@ describe('Inspiration E2E (HTTP API with real Postgres)', () => {
         .expect(200);
 
       expect(res1.body.id).toBe(res2.body.id);
-      expect(res1.body.quoteVi).toBe(res2.body.quoteVi);
-      expect(res1.body.quoteEn).toBe(res2.body.quoteEn);
+      expect(res1.body.quote).toEqual(res2.body.quote);
     });
 
     it('returns quote with author when inspiration has an author', async () => {

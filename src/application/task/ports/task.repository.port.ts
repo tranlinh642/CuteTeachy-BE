@@ -15,6 +15,5 @@ export interface TaskRepository {
   }>;
   save(task: Task): Promise<void>;
   unlinkTag(accountId: string, tagId: string, now: Date): Promise<number>;
-  validateTagOwnership(accountId: string, tagIds: string[]): Promise<boolean>;
   deletePermanentlyBefore(threshold: Date): Promise<number>;
 }

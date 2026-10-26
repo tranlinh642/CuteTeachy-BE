@@ -31,6 +31,10 @@ describe('Settings Entity', () => {
     it('throws when accountId is empty', () => {
       expect(() => Settings.createDefault('', { now })).toThrow(SettingsValidationError);
     });
+
+    it('throws when now is missing or invalid', () => {
+      expect(() => Settings.createDefault(accountId, {} as any)).toThrow(SettingsValidationError);
+    });
   });
 
   describe('update', () => {
@@ -48,64 +52,71 @@ describe('Settings Entity', () => {
 
     it('rejects invalid locale', () => {
       const settings = Settings.createDefault(accountId, { now });
-      expect(() => settings.update({ locale: 'fr' as any })).toThrow(SettingsValidationError);
+      expect(() => settings.update({ locale: 'fr' as any }, now)).toThrow(SettingsValidationError);
     });
 
     it('updates timeZone to valid IANA timezone', () => {
       const settings = Settings.createDefault(accountId, { now });
-      settings.update({ timeZone: 'America/New_York' });
+      settings.update({ timeZone: 'America/New_York' }, now);
       expect(settings.timeZone).toBe('America/New_York');
 
-      settings.update({ timeZone: 'UTC' });
+      settings.update({ timeZone: 'UTC' }, now);
       expect(settings.timeZone).toBe('UTC');
 
-      settings.update({ timeZone: 'Asia/Tokyo' });
+      settings.update({ timeZone: 'Asia/Tokyo' }, now);
       expect(settings.timeZone).toBe('Asia/Tokyo');
     });
 
     it('rejects invalid IANA timezone', () => {
       const settings = Settings.createDefault(accountId, { now });
-      expect(() => settings.update({ timeZone: 'Mars/Base' })).toThrow(SettingsValidationError);
-      expect(() => settings.update({ timeZone: '' })).toThrow(SettingsValidationError);
-      expect(() => settings.update({ timeZone: 'GMT+7' })).toThrow(SettingsValidationError);
+      expect(() => settings.update({ timeZone: 'Mars/Base' }, now)).toThrow(SettingsValidationError);
+      expect(() => settings.update({ timeZone: '' }, now)).toThrow(SettingsValidationError);
+      expect(() => settings.update({ timeZone: 'GMT+7' }, now)).toThrow(SettingsValidationError);
     });
 
     it('updates reminderLeadMinutes to allowed values (5, 10, 15, 30, 60)', () => {
       const settings = Settings.createDefault(accountId, { now });
 
       for (const mins of [5, 10, 15, 30, 60] as const) {
-        settings.update({ reminderLeadMinutes: mins });
+        settings.update({ reminderLeadMinutes: mins }, now);
         expect(settings.reminderLeadMinutes).toBe(mins);
       }
     });
 
     it('rejects invalid reminderLeadMinutes', () => {
       const settings = Settings.createDefault(accountId, { now });
-      expect(() => settings.update({ reminderLeadMinutes: 20 as any })).toThrow(
+      expect(() => settings.update({ reminderLeadMinutes: 20 as any }, now)).toThrow(
         SettingsValidationError,
       );
-      expect(() => settings.update({ reminderLeadMinutes: 0 as any })).toThrow(
+      expect(() => settings.update({ reminderLeadMinutes: 0 as any }, now)).toThrow(
         SettingsValidationError,
       );
     });
 
     it('updates pushEnabled boolean', () => {
       const settings = Settings.createDefault(accountId, { now });
-      settings.update({ pushEnabled: false });
+      settings.update({ pushEnabled: false }, now);
       expect(settings.pushEnabled).toBe(false);
 
-      settings.update({ pushEnabled: true });
+      settings.update({ pushEnabled: true }, now);
       expect(settings.pushEnabled).toBe(true);
     });
 
     it('handles partial updates without touching other fields', () => {
       const settings = Settings.createDefault(accountId, { now });
-      settings.update({ pushEnabled: false });
+      settings.update({ pushEnabled: false }, now);
 
       expect(settings.locale).toBe('vi');
       expect(settings.timeZone).toBe('Asia/Ho_Chi_Minh');
       expect(settings.reminderLeadMinutes).toBe(15);
       expect(settings.pushEnabled).toBe(false);
+    });
+
+    it('throws when now is missing or invalid in update', () => {
+      const settings = Settings.createDefault(accountId, { now });
+      expect(() => settings.update({ pushEnabled: false }, undefined as any)).toThrow(
+        SettingsValidationError,
+      );
     });
   });
 

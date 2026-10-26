@@ -137,23 +137,15 @@ export class Note implements SyncableEntity {
 
     if (props.checklist !== undefined) {
       this._checklist = Note.validateChecklist(props.checklist);
-      if (this._checklist.length > 0) {
-        this._completed = this._checklist.every((item) => item.done);
-      } else if (props.completed !== undefined) {
-        if (typeof props.completed !== 'boolean') {
-          throw new NoteValidationError('completed must be a boolean');
-        }
-        this._completed = props.completed;
+    }
+
+    if (this._checklist.length > 0) {
+      this._completed = this._checklist.every((item) => item.done);
+    } else if (props.completed !== undefined) {
+      if (typeof props.completed !== 'boolean') {
+        throw new NoteValidationError('completed must be a boolean');
       }
-    } else {
-      if (this._checklist.length > 0) {
-        this._completed = this._checklist.every((item) => item.done);
-      } else if (props.completed !== undefined) {
-        if (typeof props.completed !== 'boolean') {
-          throw new NoteValidationError('completed must be a boolean');
-        }
-        this._completed = props.completed;
-      }
+      this._completed = props.completed;
     }
 
     this._updatedAt = props.now;

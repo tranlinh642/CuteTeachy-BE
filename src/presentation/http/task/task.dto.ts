@@ -10,6 +10,7 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { TASK_CATEGORIES, TaskCategory } from '../../../domain/task/task-category.vo';
@@ -74,9 +75,10 @@ export class UpdateTaskRequestDto {
   title?: string;
 
   @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
   @IsString({ message: 'notes must be a string' })
   @MaxLength(1000, { message: 'notes cannot exceed 1000 characters' })
-  notes?: string;
+  notes?: string | null;
 
   @IsOptional()
   @IsString({ message: 'date must be a string' })
@@ -84,9 +86,10 @@ export class UpdateTaskRequestDto {
   date?: string;
 
   @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
   @IsString({ message: 'time must be a string' })
   @Matches(TIME_REGEX, { message: 'time must be in HH:mm format' })
-  time?: string;
+  time?: string | null;
 
   @IsOptional()
   @IsIn(TASK_CATEGORIES, {

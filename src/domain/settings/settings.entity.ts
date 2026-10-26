@@ -24,7 +24,7 @@ export interface CreateDefaultSettingsOptions {
   timeZone?: string;
   pushEnabled?: boolean;
   reminderLeadMinutes?: ReminderLeadMinutes;
-  now?: Date;
+  now: Date;
 }
 
 export interface UpdateSettingsProps {
@@ -39,32 +39,36 @@ export class Settings {
 
   public static createDefault(
     accountId: string,
-    options?: CreateDefaultSettingsOptions,
+    options: CreateDefaultSettingsOptions,
   ): Settings {
     if (!accountId || typeof accountId !== 'string' || !accountId.trim()) {
       throw new SettingsValidationError('accountId is required');
     }
 
-    const locale = options?.locale ?? 'vi';
+    if (!options || !(options.now instanceof Date) || isNaN(options.now.getTime())) {
+      throw new SettingsValidationError('now is required and must be a valid Date');
+    }
+
+    const locale = options.locale ?? 'vi';
     if (!isSettingsLocale(locale)) {
       throw new SettingsValidationError(`Invalid locale: ${locale}`);
     }
 
-    const timeZone = options?.timeZone ?? 'Asia/Ho_Chi_Minh';
+    const timeZone = options.timeZone ?? 'Asia/Ho_Chi_Minh';
     if (!isValidIanaTimeZone(timeZone)) {
       throw new SettingsValidationError(`Invalid IANA time zone: ${timeZone}`);
     }
 
-    const pushEnabled = options?.pushEnabled ?? true;
-    const reminderLeadMinutes = options?.reminderLeadMinutes ?? 15;
+    const pushEnabled = options.pushEnabled ?? true;
+    const reminderLeadMinutes = options.reminderLeadMinutes ?? 15;
     if (!isReminderLeadMinutes(reminderLeadMinutes)) {
       throw new SettingsValidationError(`Invalid reminderLeadMinutes: ${reminderLeadMinutes}`);
     }
 
-    const now = options?.now ?? new Date();
+    const now = options.now;
 
     return new Settings({
-      id: options?.id,
+      id: options.id,
       accountId: accountId.trim(),
       locale,
       timeZone,
@@ -79,7 +83,11 @@ export class Settings {
     return new Settings({ ...props });
   }
 
-  public update(props: UpdateSettingsProps, now = new Date()): void {
+  public update(props: UpdateSettingsProps, now: Date): void {
+    if (!now || !(now instanceof Date) || isNaN(now.getTime())) {
+      throw new SettingsValidationError('now is required and must be a valid Date');
+    }
+
     let modified = false;
 
     if (props.locale !== undefined) {

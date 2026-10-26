@@ -1,12 +1,15 @@
 import { UpdateTaskUseCase } from '../../../../src/application/task/update-task.use-case';
 import { Task } from '../../../../src/domain/task/task.entity';
+import { Tag } from '../../../../src/domain/tag/tag.entity';
 import { TaskValidationError } from '../../../../src/domain/task/task.errors';
 import { EntityNotFoundError } from '../../../../src/domain/shared/sync.errors';
 import { FixedClock } from '../../../fakes/fixed-clock';
 import { FakeTaskRepository } from './fake-task.repository';
+import { FakeTagRepository } from '../tag/fake-tag.repository';
 
 describe('UpdateTaskUseCase', () => {
   let taskRepo: FakeTaskRepository;
+  let tagRepo: FakeTagRepository;
   let clock: FixedClock;
   let useCase: UpdateTaskUseCase;
 
@@ -19,8 +22,9 @@ describe('UpdateTaskUseCase', () => {
 
   beforeEach(async () => {
     taskRepo = new FakeTaskRepository();
+    tagRepo = new FakeTagRepository();
     clock = new FixedClock(tUpdate);
-    useCase = new UpdateTaskUseCase(taskRepo, clock);
+    useCase = new UpdateTaskUseCase(taskRepo, tagRepo, clock);
 
     const task = Task.create({
       id: taskId,
@@ -38,7 +42,9 @@ describe('UpdateTaskUseCase', () => {
   });
 
   it('updates task partially and refreshes updatedAt', async () => {
-    taskRepo.addValidTag(tagId1, accountId);
+    await tagRepo.save(
+      Tag.create({ id: tagId1, accountId, name: 'Tag 1', tone: 'mint', now: t0 }),
+    );
 
     const updated = await useCase.execute({
       id: taskId,
@@ -92,7 +98,9 @@ describe('UpdateTaskUseCase', () => {
   });
 
   it('throws TaskValidationError (400) if updated tag does not belong to user', async () => {
-    taskRepo.addValidTag(tagId1, otherAccountId);
+    await tagRepo.save(
+      Tag.create({ id: tagId1, accountId: otherAccountId, name: 'Tag 1', tone: 'mint', now: t0 }),
+    );
 
     await expect(
       useCase.execute({

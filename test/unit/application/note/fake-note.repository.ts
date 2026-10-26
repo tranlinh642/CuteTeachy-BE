@@ -25,29 +25,22 @@ function cloneNote(note: Note): Note {
 
 export class FakeNoteRepository implements NoteRepository {
   private notes = new Map<string, Note>();
-  private validTagIds = new Set<string>();
 
-  snapshot(): { notes: Map<string, Note>; validTagIds: Set<string> } {
+  snapshot(): { notes: Map<string, Note> } {
     const copyNotes = new Map<string, Note>();
     for (const [id, note] of this.notes.entries()) {
       copyNotes.set(id, cloneNote(note));
     }
     return {
       notes: copyNotes,
-      validTagIds: new Set(this.validTagIds),
     };
   }
 
-  restore(snap: { notes: Map<string, Note>; validTagIds: Set<string> }): void {
+  restore(snap: { notes: Map<string, Note> }): void {
     this.notes = new Map();
     for (const [id, note] of snap.notes.entries()) {
       this.notes.set(id, cloneNote(note));
     }
-    this.validTagIds = new Set(snap.validTagIds);
-  }
-
-  setValidTags(tagIds: string[]): void {
-    this.validTagIds = new Set(tagIds);
   }
 
   async findById(id: string): Promise<Note | null> {
@@ -151,11 +144,6 @@ export class FakeNoteRepository implements NoteRepository {
       }
     }
     return count;
-  }
-
-  async validateTagOwnership(_accountId: string, tagIds: string[]): Promise<boolean> {
-    if (tagIds.length === 0) return true;
-    return tagIds.every((id) => this.validTagIds.has(id));
   }
 
   async deletePermanentlyBefore(threshold: Date): Promise<number> {
