@@ -4,7 +4,7 @@
 
 **Blocked by:** S3-BE-01
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Đọc:** SPEC-003 mục *Quy tắc đồng bộ chung*, *Kiểu dữ liệu* (Task), *API* (tasks); `GLOSSARY.md`.
 
