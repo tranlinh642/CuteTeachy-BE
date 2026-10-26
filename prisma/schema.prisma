@@ -36,6 +36,7 @@ model Account {
   exchangeCodes     OneTimeExchangeCode[]
   verificationCodes VerificationCode[]
   tags              Tag[]
+  settings          Settings?
 
   @@map("accounts")
 }
@@ -152,4 +153,19 @@ model Tag {
   @@index([accountId, updatedAt])
   @@index([deletedAt])
   @@map("tags")
+}
+
+model Settings {
+  id                  String   @id @default(uuid())
+  accountId           String   @unique
+  locale              String   @default("vi")
+  timeZone            String   @default("Asia/Ho_Chi_Minh")
+  pushEnabled         Boolean  @default(true)
+  reminderLeadMinutes Int      @default(15)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  account             Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("settings")
 }
