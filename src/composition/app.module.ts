@@ -9,6 +9,7 @@ import { EmailVerificationModule } from './email-verification.module';
 import { PasswordResetModule } from './password-reset.module';
 import { TagModule } from './tag.module';
 import { TaskModule } from './task.module';
+import { NoteModule } from './note.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { TaskModule } from './task.module';
     PasswordResetModule,
     TagModule,
     TaskModule,
+    NoteModule,
   ],
 })
 export class AppModule {}
