@@ -43,6 +43,15 @@ export const envSchema = z.object({
   SMTP_USER: z.string().optional().default(''),
   SMTP_PASS: z.string().optional().default(''),
   MAIL_FROM: z.string().default('CuteTeachy <no-reply@cuteteachy.local>'),
+
+  // Web Push / VAPID (SPEC-005)
+  VAPID_PUBLIC_KEY: z
+    .string()
+    .default(
+      'BCvaZeuosq6iWYJW-2e5dcir3JGcqrQO2oVA6PVN1e12t1MUsmkSBFeXABN-0aN1LiL3wS2Tl1e6LwfdLRmOY3Y',
+    ),
+  VAPID_PRIVATE_KEY: z.string().default('YVtjFEQG0EcRNl4s_8aX1gzcbNlnkLvnwSHzaC7LBfw'),
+  VAPID_SUBJECT: z.string().default('mailto:dev@cuteteachy.local'),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

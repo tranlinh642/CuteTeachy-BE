@@ -27,6 +27,9 @@ describe('SmtpMailer', () => {
     SMTP_USER: '',
     SMTP_PASS: '',
     MAIL_FROM: 'CuteTeachy <no-reply@cuteteachy.local>',
+    VAPID_PUBLIC_KEY: 'test-public-key',
+    VAPID_PRIVATE_KEY: 'test-private-key',
+    VAPID_SUBJECT: 'mailto:test@cuteteachy.local',
   };
 
   it('sends email using injected transporter and configured sender', async () => {

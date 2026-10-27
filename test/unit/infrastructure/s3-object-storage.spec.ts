@@ -28,6 +28,9 @@ describe('S3ObjectStorage', () => {
     SMTP_USER: '',
     SMTP_PASS: '',
     MAIL_FROM: 'CuteTeachy <no-reply@cuteteachy.local>',
+    VAPID_PUBLIC_KEY: 'test-public-key',
+    VAPID_PRIVATE_KEY: 'test-private-key',
+    VAPID_SUBJECT: 'mailto:test@cuteteachy.local',
   };
 
   it('builds public url using S3_PUBLIC_BASE_URL', () => {
