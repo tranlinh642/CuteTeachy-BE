@@ -4,7 +4,7 @@
 
 **Blocked by:** S5-BE-01, S3-BE-02 (Settings), S3-BE-03 (Tasks)
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 **Đọc:** SPEC-005 mục *Reminder*, *Kích hoạt gửi*, *API*; ADR BE 0002, 0005; `docs/setup/external-services.md` §5; `GLOSSARY.md` (Reminder).
 
