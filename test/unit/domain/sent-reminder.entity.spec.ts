@@ -8,6 +8,7 @@ describe('SentReminder Entity', () => {
   describe('create', () => {
     it('creates a valid SentReminder entity', () => {
       const reminder = SentReminder.create({
+        id: 'sent-123',
         type: 'task',
         targetId: 'task-123',
         remindAt,
@@ -15,7 +16,7 @@ describe('SentReminder Entity', () => {
         now,
       });
 
-      expect(reminder.id).toBeDefined();
+      expect(reminder.id).toBe('sent-123');
       expect(reminder.type).toBe('task');
       expect(reminder.targetId).toBe('task-123');
       expect(reminder.remindAt).toEqual(remindAt);
@@ -23,9 +24,23 @@ describe('SentReminder Entity', () => {
       expect(reminder.accountId).toBe('acc-456');
     });
 
+    it('rejects empty id', () => {
+      expect(() =>
+        SentReminder.create({
+          id: '   ',
+          type: 'task',
+          targetId: 'task-123',
+          remindAt,
+          accountId: 'acc-456',
+          now,
+        }),
+      ).toThrow(ReminderValidationError);
+    });
+
     it('rejects invalid type', () => {
       expect(() =>
         SentReminder.create({
+          id: 'sent-123',
           type: 'invalid' as any,
           targetId: 'task-123',
           remindAt,
@@ -38,6 +53,7 @@ describe('SentReminder Entity', () => {
     it('rejects empty targetId', () => {
       expect(() =>
         SentReminder.create({
+          id: 'sent-123',
           type: 'task',
           targetId: '   ',
           remindAt,
@@ -50,6 +66,7 @@ describe('SentReminder Entity', () => {
     it('rejects empty accountId', () => {
       expect(() =>
         SentReminder.create({
+          id: 'sent-123',
           type: 'task',
           targetId: 'task-123',
           remindAt,
@@ -62,6 +79,7 @@ describe('SentReminder Entity', () => {
     it('rejects invalid remindAt', () => {
       expect(() =>
         SentReminder.create({
+          id: 'sent-123',
           type: 'task',
           targetId: 'task-123',
           remindAt: new Date('invalid'),

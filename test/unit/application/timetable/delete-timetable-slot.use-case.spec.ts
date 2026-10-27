@@ -37,6 +37,7 @@ describe('DeleteTimetableSlotUseCase', () => {
     };
 
     settingsReader = {
+      findPushEnabledTeachers: async () => [],
       getSettings: async (accId: string) => {
         if (accId !== accountId) return null;
         return Settings.createDefault(accountId, {

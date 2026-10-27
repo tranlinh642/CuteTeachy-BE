@@ -1,17 +1,21 @@
 import { Module } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { SharedModule } from './shared.module';
 import { SettingsModule } from './settings.module';
 import { PushSubscriptionModule } from './push-subscription.module';
 import { TagModule } from './tag.module';
+import { TaskModule } from './task.module';
 import { TimetableModule } from './timetable.module';
 import { ClassSessionModule } from './class-session.module';
 import { CLOCK, Clock } from '../application/shared/ports/clock.port';
+import { ID_GENERATOR, IdGenerator } from '../application/shared/ports/id-generator.port';
 import {
   TEACHER_SETTINGS_READER,
   TeacherSettingsReader,
 } from '../application/settings/ports/teacher-settings.port';
 import { SendPushToTeacherUseCase } from '../application/push-subscription/send-push-to-teacher.use-case';
 import { PurgeSoftDeletedTagsUseCase } from '../application/tag/purge-soft-deleted-tags.use-case';
+import { PurgeSoftDeletedTasksUseCase } from '../application/task/purge-soft-deleted-tasks.use-case';
 import {
   SENT_REMINDER_REPOSITORY,
   SentReminderRepository,
@@ -46,6 +50,7 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
     SettingsModule,
     PushSubscriptionModule,
     TagModule,
+    TaskModule,
     TimetableModule,
     ClassSessionModule,
   ],
@@ -62,7 +67,18 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
     {
       provide: CRON_SECRET_VERIFIER,
       useFactory: (config: AppConfig): CronSecretVerifier => ({
-        verify: (secret: string) => Boolean(secret && secret === config.CRON_SECRET),
+        verify: (secret: string): boolean => {
+          if (!secret || typeof secret !== 'string' || !config.CRON_SECRET) {
+            return false;
+          }
+          const secretBuffer = Buffer.from(secret, 'utf8');
+          const expectedBuffer = Buffer.from(config.CRON_SECRET, 'utf8');
+          if (secretBuffer.length !== expectedBuffer.length) {
+            crypto.timingSafeEqual(secretBuffer, secretBuffer);
+            return false;
+          }
+          return crypto.timingSafeEqual(secretBuffer, expectedBuffer);
+        },
       }),
       inject: [APP_CONFIG],
     },
@@ -76,9 +92,11 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
         sentReminderRepo: SentReminderRepository,
         sendPushUseCase: SendPushToTeacherUseCase,
         clock: Clock,
-        purgeTagsUseCase: PurgeSoftDeletedTagsUseCase,
+        idGenerator: IdGenerator,
         slotRepo: TimetableSlotRepository,
         sessionRepo: ClassSessionRepository,
+        purgeTagsUseCase: PurgeSoftDeletedTagsUseCase,
+        purgeTasksUseCase: PurgeSoftDeletedTasksUseCase,
       ) =>
         new DispatchRemindersUseCase(
           taskReader,
@@ -86,9 +104,11 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
           sentReminderRepo,
           sendPushUseCase,
           clock,
-          purgeTagsUseCase,
+          idGenerator,
           slotRepo,
           sessionRepo,
+          purgeTagsUseCase,
+          purgeTasksUseCase,
         ),
       inject: [
         TASK_REMINDER_READER,
@@ -96,9 +116,11 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
         SENT_REMINDER_REPOSITORY,
         SendPushToTeacherUseCase,
         CLOCK,
-        PurgeSoftDeletedTagsUseCase,
+        ID_GENERATOR,
         TIMETABLE_SLOT_REPOSITORY,
         CLASS_SESSION_REPOSITORY,
+        PurgeSoftDeletedTagsUseCase,
+        PurgeSoftDeletedTasksUseCase,
       ],
     },
   ],

@@ -14,6 +14,9 @@ import { SentReminder } from '../../../../src/domain/reminder/sent-reminder.enti
 import { TimetableSlot } from '../../../../src/domain/timetable/timetable-slot.entity';
 import { ClassSession } from '../../../../src/domain/class-session/class-session.entity';
 import { PurgeSoftDeletedTagsUseCase } from '../../../../src/application/tag/purge-soft-deleted-tags.use-case';
+import { PurgeSoftDeletedTasksUseCase } from '../../../../src/application/task/purge-soft-deleted-tasks.use-case';
+import { SendPushToTeacherUseCase } from '../../../../src/application/push-subscription/send-push-to-teacher.use-case';
+import { IdGenerator } from '../../../../src/application/shared/ports/id-generator.port';
 
 describe('DispatchRemindersUseCase', () => {
   let taskReader: InMemoryTaskReminderReader;
@@ -24,6 +27,8 @@ describe('DispatchRemindersUseCase', () => {
   let sessionRepo: InMemoryClassSessionRepository;
   let fakePushSender: FakePushSender;
   let clock: FixedClock;
+  let sendPushUseCase!: SendPushToTeacherUseCase;
+  let idGenerator!: IdGenerator;
   let useCase: DispatchRemindersUseCase;
 
   const teacherId = 'teacher-uuid-1';
@@ -157,13 +162,20 @@ describe('DispatchRemindersUseCase', () => {
     });
     await pushSubRepo.save(sub);
 
+    let idCounter = 1;
+    idGenerator = {
+      next: () => `sent-id-${idCounter++}`,
+      generate: () => `sent-id-${idCounter++}`,
+    };
+    sendPushUseCase = new SendPushToTeacherUseCase(pushSubRepo, fakePushSender);
+
     useCase = new DispatchRemindersUseCase(
       taskReader,
       settingsRepo,
       sentReminderRepo,
-      fakePushSender,
-      pushSubRepo,
+      sendPushUseCase,
       clock,
+      idGenerator,
       slotRepo,
       sessionRepo,
     );
@@ -432,8 +444,8 @@ describe('DispatchRemindersUseCase', () => {
       expect(fakePushSender.getSentMessages()).toHaveLength(1);
       const sentMsg = fakePushSender.getSentMessages()[0];
       expect(sentMsg.payload).toEqual({
-        title: 'Tiết dạy',
-        body: 'Sinh học - 10A, 10:00, 302',
+        title: 'Tiết dạy: Sinh học 10A',
+        body: 'Bắt đầu lúc 10:00 tại Phòng 302',
         url: '/timetable?date=2026-10-27',
         data: {
           type: 'class_session',
@@ -460,8 +472,8 @@ describe('DispatchRemindersUseCase', () => {
       expect(fakePushSender.getSentMessages()).toHaveLength(1);
       const sentMsg = fakePushSender.getSentMessages()[0];
       expect(sentMsg.payload).toEqual({
-        title: 'Tiết dạy',
-        body: 'Dạy bù Vật lý - 11B, 10:00, 101',
+        title: 'Tiết dạy: Dạy bù Vật lý 11B',
+        body: 'Bắt đầu lúc 10:00 tại Phòng 101',
         url: '/timetable?date=2026-10-27',
         data: {
           type: 'class_session',
@@ -558,7 +570,7 @@ describe('DispatchRemindersUseCase', () => {
         const result = await useCase.execute();
         expect(result).toEqual({ sent: 1, skipped: 0 });
         expect(fakePushSender.getSentMessages()).toHaveLength(1);
-        expect(fakePushSender.getSentMessages()[0].payload.body).toBe('Sinh học - 10A, 11:00, 302');
+        expect(fakePushSender.getSentMessages()[0].payload.body).toBe('Bắt đầu lúc 11:00 tại Phòng 302');
       });
 
       it('buổi lẻ đổi giờ -> nhắc theo giờ mới', async () => {
@@ -664,8 +676,8 @@ describe('DispatchRemindersUseCase', () => {
       await useCase.execute();
 
       expect(fakePushSender.getSentMessages()[0].payload).toEqual({
-        title: 'Class session',
-        body: 'Biology - 10A, 10:00, Room 302',
+        title: 'Class session: Biology 10A',
+        body: 'Starts at 10:00 in Room 302',
         url: '/timetable?date=2026-10-27',
         data: {
           type: 'class_session',
@@ -766,12 +778,12 @@ describe('DispatchRemindersUseCase', () => {
         taskReader,
         settingsRepo,
         sentReminderRepo,
-        fakePushSender,
-        pushSubRepo,
+        sendPushUseCase,
         clock,
-        mockPurgeTagsUseCase,
+        idGenerator,
         slotRepo,
         sessionRepo,
+        mockPurgeTagsUseCase,
       );
 
       await useCaseWithPurge.execute();
@@ -779,25 +791,27 @@ describe('DispatchRemindersUseCase', () => {
       expect(mockPurgeTagsUseCase.execute).toHaveBeenCalledTimes(1);
     });
 
-    it('hỗ trợ khởi tạo với SendPushToTeacherUseCase trực tiếp', async () => {
-      const sendPushUseCase = {
-        execute: jest.fn().mockResolvedValue({ total: 1, sent: 1, expired: 0, failed: 0 }),
-      } as any;
+    it('gọi PurgeSoftDeletedTasksUseCase nếu có', async () => {
+      const mockPurgeTasksUseCase = {
+        execute: jest.fn().mockResolvedValue({ purgedCount: 3 }),
+      } as unknown as PurgeSoftDeletedTasksUseCase;
 
-      const useCaseWithDirectPush = new DispatchRemindersUseCase(
+      const useCaseWithPurgeTasks = new DispatchRemindersUseCase(
         taskReader,
         settingsRepo,
         sentReminderRepo,
         sendPushUseCase,
         clock,
+        idGenerator,
+        slotRepo,
+        sessionRepo,
+        undefined,
+        mockPurgeTasksUseCase,
       );
 
-      const task = createTask();
-      taskReader.addTask(task);
+      await useCaseWithPurgeTasks.execute();
 
-      const result = await useCaseWithDirectPush.execute();
-      expect(result).toEqual({ sent: 1, skipped: 0 });
-      expect(sendPushUseCase.execute).toHaveBeenCalledTimes(1);
+      expect(mockPurgeTasksUseCase.execute).toHaveBeenCalledTimes(1);
     });
   });
 });

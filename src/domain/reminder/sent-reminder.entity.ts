@@ -2,7 +2,7 @@ import { ReminderType, isReminderType } from './reminder-type.vo';
 import { ReminderValidationError } from './reminder.errors';
 
 export interface CreateSentReminderProps {
-  id?: string;
+  id: string;
   type: ReminderType;
   targetId: string;
   remindAt: Date;
@@ -30,6 +30,10 @@ export class SentReminder {
   ) {}
 
   static create(props: CreateSentReminderProps): SentReminder {
+    if (!props.id || typeof props.id !== 'string' || !props.id.trim()) {
+      throw new ReminderValidationError('id is required and cannot be empty');
+    }
+
     if (!isReminderType(props.type)) {
       throw new ReminderValidationError(`Invalid reminder type: ${props.type}`);
     }
@@ -50,10 +54,8 @@ export class SentReminder {
       throw new ReminderValidationError('now must be a valid Date');
     }
 
-    const id = props.id ?? crypto.randomUUID();
-
     return new SentReminder(
-      id,
+      props.id.trim(),
       props.type,
       props.targetId.trim(),
       new Date(props.remindAt.getTime()),

@@ -1,10 +1,23 @@
+import * as crypto from 'crypto';
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { CronSecretGuard } from '../../../src/presentation/http/reminder/guards/cron-secret.guard';
 import { CronSecretVerifier } from '../../../src/application/reminder/ports/cron-secret-verifier.port';
 
 describe('CronSecretGuard', () => {
+  const expectedSecret = 'super-secret-cron-token';
   const verifier: CronSecretVerifier = {
-    verify: (secret: string) => secret === 'super-secret-cron-token',
+    verify: (secret: string): boolean => {
+      if (!secret || typeof secret !== 'string' || !expectedSecret) {
+        return false;
+      }
+      const secretBuffer = Buffer.from(secret, 'utf8');
+      const expectedBuffer = Buffer.from(expectedSecret, 'utf8');
+      if (secretBuffer.length !== expectedBuffer.length) {
+        crypto.timingSafeEqual(secretBuffer, secretBuffer);
+        return false;
+      }
+      return crypto.timingSafeEqual(secretBuffer, expectedBuffer);
+    },
   };
 
   let guard: CronSecretGuard;
@@ -25,7 +38,7 @@ describe('CronSecretGuard', () => {
 
   it('allows request when X-Cron-Secret header matches config', () => {
     const ctx = createMockContext({
-      'x-cron-secret': 'super-secret-cron-token',
+      'x-cron-secret': expectedSecret,
     });
 
     expect(guard.canActivate(ctx)).toBe(true);
@@ -33,7 +46,7 @@ describe('CronSecretGuard', () => {
 
   it('allows request when header casing is X-Cron-Secret', () => {
     const ctx = createMockContext({
-      'X-Cron-Secret': 'super-secret-cron-token',
+      'X-Cron-Secret': expectedSecret,
     });
 
     expect(guard.canActivate(ctx)).toBe(true);
@@ -45,9 +58,17 @@ describe('CronSecretGuard', () => {
     expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
   });
 
-  it('throws UnauthorizedException when header is incorrect', () => {
+  it('throws UnauthorizedException when header is incorrect (different length)', () => {
     const ctx = createMockContext({
-      'x-cron-secret': 'wrong-secret',
+      'x-cron-secret': 'short',
+    });
+
+    expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
+  });
+
+  it('throws UnauthorizedException when header is incorrect (same length)', () => {
+    const ctx = createMockContext({
+      'x-cron-secret': 'wrong-secret-cron-token',
     });
 
     expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);

@@ -291,8 +291,8 @@ describe('POST /internal/reminders/dispatch (e2e)', () => {
       // Verify push sender received message
       expect(fakePushSender.getSentMessages()).toHaveLength(1);
       const sentMsg = fakePushSender.getSentMessages()[0];
-      expect(sentMsg.payload.title).toBe('Tiết dạy');
-      expect(sentMsg.payload.body).toBe('Sinh học E2E - 10A, 10:00, P.302');
+      expect(sentMsg.payload.title).toBe('Tiết dạy: Sinh học E2E 10A');
+      expect(sentMsg.payload.body).toBe('Bắt đầu lúc 10:00 tại P.302');
       expect(sentMsg.payload.url).toBe('/timetable?date=2026-10-27');
 
       // Verify DB record in sent_reminders
@@ -361,8 +361,8 @@ describe('POST /internal/reminders/dispatch (e2e)', () => {
 
       expect(fakePushSender.getSentMessages()).toHaveLength(1);
       const msg = fakePushSender.getSentMessages()[0];
-      expect(msg.payload.title).toBe('Tiết dạy');
-      expect(msg.payload.body).toBe('Dạy bù Vật lý E2E - 11B, 10:00, P.101');
+      expect(msg.payload.title).toBe('Tiết dạy: Dạy bù Vật lý E2E 11B');
+      expect(msg.payload.body).toBe('Bắt đầu lúc 10:00 tại P.101');
       expect(msg.payload.url).toBe('/timetable?date=2026-10-27');
 
       const sentRecords = await prisma.sentReminder.findMany({

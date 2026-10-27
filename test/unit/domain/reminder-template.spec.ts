@@ -53,7 +53,7 @@ describe('Reminder Template', () => {
     });
   });
 
-  describe('Class Session Reminder Template', () => {
+  describe('Class Session Reminder Template (SPEC-005 §50)', () => {
     const sessionWithAll = {
       id: 'session-xyz',
       date: '2026-10-27',
@@ -67,8 +67,8 @@ describe('Reminder Template', () => {
       const payload = formatClassSessionReminderNotification('vi', sessionWithAll);
 
       expect(payload).toEqual({
-        title: 'Tiết dạy',
-        body: 'Toán học - 10A, 07:30, P.302',
+        title: 'Tiết dạy: Toán học 10A',
+        body: 'Bắt đầu lúc 07:30 tại P.302',
         url: '/timetable?date=2026-10-27',
         data: {
           type: 'class_session',
@@ -79,6 +79,19 @@ describe('Reminder Template', () => {
       });
     });
 
+    it('formats notification in Vietnamese with standard room number', () => {
+      const payload = formatClassSessionReminderNotification('vi', {
+        id: 'session-xyz',
+        date: '2026-10-27',
+        startTime: '07:30',
+        subject: 'Toán 10A1',
+        room: '102',
+      });
+
+      expect(payload.title).toBe('Tiết dạy: Toán 10A1');
+      expect(payload.body).toBe('Bắt đầu lúc 07:30 tại Phòng 102');
+    });
+
     it('formats notification in English with grade and room', () => {
       const payload = formatClassSessionReminderNotification('en', {
         ...sessionWithAll,
@@ -87,8 +100,8 @@ describe('Reminder Template', () => {
       });
 
       expect(payload).toEqual({
-        title: 'Class session',
-        body: 'Mathematics - 10A, 07:30, Room 302',
+        title: 'Class session: Mathematics 10A',
+        body: 'Starts at 07:30 in Room 302',
         url: '/timetable?date=2026-10-27',
         data: {
           type: 'class_session',
@@ -97,6 +110,20 @@ describe('Reminder Template', () => {
           url: '/timetable?date=2026-10-27',
         },
       });
+    });
+
+    it('formats notification in English with plain room number', () => {
+      const payload = formatClassSessionReminderNotification('en', {
+        id: 'session-xyz',
+        date: '2026-10-27',
+        startTime: '07:30',
+        subject: 'Math',
+        grade: '10A1',
+        room: '102',
+      });
+
+      expect(payload.title).toBe('Class session: Math 10A1');
+      expect(payload.body).toBe('Starts at 07:30 in Room 102');
     });
 
     it('omits grade when not provided', () => {
@@ -108,8 +135,8 @@ describe('Reminder Template', () => {
         room: 'P.101',
       });
 
-      expect(payload.title).toBe('Tiết dạy');
-      expect(payload.body).toBe('Vật lý, 08:30, P.101');
+      expect(payload.title).toBe('Tiết dạy: Vật lý');
+      expect(payload.body).toBe('Bắt đầu lúc 08:30 tại P.101');
     });
 
     it('omits room when not provided', () => {
@@ -121,8 +148,8 @@ describe('Reminder Template', () => {
         grade: '11B',
       });
 
-      expect(payload.title).toBe('Tiết dạy');
-      expect(payload.body).toBe('Hóa học - 11B, 09:30');
+      expect(payload.title).toBe('Tiết dạy: Hóa học 11B');
+      expect(payload.body).toBe('Bắt đầu lúc 09:30');
     });
 
     it('handles session with only subject and startTime', () => {
@@ -133,13 +160,14 @@ describe('Reminder Template', () => {
         subject: 'Sinh học',
       });
 
-      expect(payload.title).toBe('Tiết dạy');
-      expect(payload.body).toBe('Sinh học, 10:30');
+      expect(payload.title).toBe('Tiết dạy: Sinh học');
+      expect(payload.body).toBe('Bắt đầu lúc 10:30');
     });
 
     it('defaults to Vietnamese if unknown locale provided', () => {
       const payload = formatClassSessionReminderNotification('de', sessionWithAll);
-      expect(payload.title).toBe('Tiết dạy');
+      expect(payload.title).toBe('Tiết dạy: Toán học 10A');
+      expect(payload.body).toBe('Bắt đầu lúc 07:30 tại P.302');
     });
   });
 });
