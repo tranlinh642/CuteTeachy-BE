@@ -4,7 +4,7 @@
 
 **Blocked by:** S4-BE-02 (cần bản ghi đè để chuyển/bỏ khi tách)
 
-**Status:** completed
+**Status:** done
 
 **Đọc:** SPEC-004 mục *Timetable Slot* (sửa slot, xoá slot, chuyển bản ghi đè), *API* (`PATCH`/`DELETE /timetable-slots/:id`); ADR BE 0004; `docs/architecture/design-patterns.md` (Unit of Work).
 
