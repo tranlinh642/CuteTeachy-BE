@@ -12,6 +12,8 @@ import { TaskModule } from './task.module';
 import { SettingsModule } from './settings.module';
 import { NoteModule } from './note.module';
 import { InspirationModule } from './inspiration.module';
+import { TimetableModule } from './timetable.module';
+import { ClassSessionModule } from './class-session.module';
 
 @Module({
   imports: [
@@ -28,6 +30,8 @@ import { InspirationModule } from './inspiration.module';
     SettingsModule,
     NoteModule,
     InspirationModule,
+    TimetableModule,
+    ClassSessionModule,
   ],
 })
 export class AppModule {}
