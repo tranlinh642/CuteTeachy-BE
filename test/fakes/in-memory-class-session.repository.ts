@@ -31,10 +31,18 @@ export class InMemoryClassSessionRepository implements ClassSessionRepository {
     this.items.set(session.id, session);
   }
 
-  async transferOverrides(oldSlotId: string, newSlotId: string, fromDate: string): Promise<void> {
+  async transferOverrides(
+    oldSlotId: string,
+    newSlotId: string,
+    fromDate: string,
+    newEffectiveTo?: string | null,
+  ): Promise<void> {
     for (const [id, session] of Array.from(this.items.entries())) {
       if (session.timetableSlotId === oldSlotId && session.date >= fromDate) {
         this.items.delete(id);
+        if (newEffectiveTo && session.date > newEffectiveTo) {
+          continue;
+        }
         const newSession = ClassSession.rehydrate({
           id: `${newSlotId}:${session.date}`,
           accountId: session.accountId,

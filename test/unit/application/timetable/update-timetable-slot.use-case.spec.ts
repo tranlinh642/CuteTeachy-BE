@@ -154,6 +154,42 @@ describe('UpdateTimetableSlotUseCase', () => {
       expect(newFuture?.topic).toBe('Future topic');
     });
 
+    it('deletes overrides exceeding newEffectiveTo when effectiveTo is shortened during split', async () => {
+      const withinOverride = ClassSession.createOverride({
+        accountId,
+        timetableSlotId: existingSlotId,
+        date: '2026-11-02', // Monday within new effectiveTo
+        topic: 'Within topic',
+        now: currentTime,
+      });
+      const beyondOverride = ClassSession.createOverride({
+        accountId,
+        timetableSlotId: existingSlotId,
+        date: '2026-11-23', // Monday exceeding new effectiveTo
+        topic: 'Beyond topic',
+        now: currentTime,
+      });
+      await sessionRepo.save(withinOverride);
+      await sessionRepo.save(beyondOverride);
+
+      const result = await useCase.execute({
+        id: existingSlotId,
+        accountId,
+        effectiveTo: '2026-11-10',
+      });
+
+      // Override within newEffectiveTo is transferred
+      const transferredWithin = await sessionRepo.findById(`${result.current.id}:2026-11-02`);
+      expect(transferredWithin).toBeDefined();
+      expect(transferredWithin?.timetableSlotId).toBe(result.current.id);
+
+      // Override beyond newEffectiveTo is deleted (not on old slot, not on new slot)
+      const oldBeyond = await sessionRepo.findById(`${existingSlotId}:2026-11-23`);
+      expect(oldBeyond).toBeNull();
+      const newBeyond = await sessionRepo.findById(`${result.current.id}:2026-11-23`);
+      expect(newBeyond).toBeNull();
+    });
+
     it('discards overrides from today onwards when weekday or time changes', async () => {
       const pastOverride = ClassSession.createOverride({
         accountId,

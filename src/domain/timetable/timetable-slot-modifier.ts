@@ -1,5 +1,6 @@
 import { TimetableSlot } from './timetable-slot.entity';
 import { Tone } from './tone.vo';
+import { TimetableValidationError } from './timetable.errors';
 
 export interface ModifySlotInput {
   slot: TimetableSlot;
@@ -40,9 +41,19 @@ export function planSlotModification(input: ModifySlotInput): SlotModificationRe
 
   if (slot.hasPastSessions(today)) {
     // Slot has past sessions (effectiveFrom < today) -> SPLIT
+    if (slot.effectiveTo !== null && slot.effectiveTo < today) {
+      if (!updates.effectiveTo || updates.effectiveTo < today) {
+        throw new TimetableValidationError(
+          'cannot modify expired slot without specifying a future effectiveTo',
+        );
+      }
+    }
+
     const originalEffectiveTo = slot.effectiveTo;
     const oldSlot = slot;
-    oldSlot.endAt(yesterday, now);
+    if (slot.effectiveTo === null || slot.effectiveTo >= yesterday) {
+      oldSlot.endAt(yesterday, now);
+    }
 
     const newWeekday = updates.weekday ?? oldSlot.weekday;
     const newStartTime = updates.startTime ?? oldSlot.startTime;

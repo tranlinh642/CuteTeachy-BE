@@ -11,10 +11,11 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { TONES, Tone } from '../../../domain/timetable/tone.vo';
 
 export class CreateTimetableSlotRequestDto {
-  @IsUUID('4', { message: 'id must be a valid UUID v4' })
+  @IsUUID('all', { message: 'id must be a valid UUID' })
   id!: string;
 
   @IsInt({ message: 'weekday must be an integer' })
@@ -30,16 +31,19 @@ export class CreateTimetableSlotRequestDto {
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'endTime must be in HH:mm format' })
   endTime!: string;
 
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MinLength(1, { message: 'subject must be at least 1 character' })
   @MaxLength(120, { message: 'subject cannot exceed 120 characters' })
   subject!: string;
 
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   grade?: string;
 
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   room?: string;
 
@@ -82,16 +86,19 @@ export class UpdateTimetableSlotRequestDto {
   endTime?: string;
 
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MinLength(1, { message: 'subject must be at least 1 character' })
   @MaxLength(120, { message: 'subject cannot exceed 120 characters' })
   subject?: string;
 
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   grade?: string;
 
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   room?: string;
 

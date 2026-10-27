@@ -170,7 +170,13 @@ export class ListClassSessionsUseCase {
             slotCache.set(slotId, await this.slotRepo.findById(slotId));
           }
           const slot = slotCache.get(slotId);
-          if (slot) {
+          if (
+            slot &&
+            !slot.isDeleted() &&
+            slot.weekday === getWeekdayFromIsoDate(session.date) &&
+            slot.effectiveFrom <= session.date &&
+            (slot.effectiveTo === null || session.date <= slot.effectiveTo)
+          ) {
             const dto: ClassSessionDto = {
               id: session.id,
               timetableSlotId: slot.id,
@@ -222,6 +228,7 @@ export class ListClassSessionsUseCase {
   ): Promise<SyncEnvelope<ClassSessionDto>> {
     const activeSlots = await this.slotRepo.findActiveByAccount(accountId);
     const generatedSessions = generateClassSessions(activeSlots, range.from, range.to);
+    const currentGeneratedSessionIds = new Set(generatedSessions.map((s) => s.id));
 
     const overrides = new Map<string, ClassSession>();
     const activeAdHocs: ClassSession[] = [];
@@ -229,7 +236,15 @@ export class ListClassSessionsUseCase {
 
     for (const session of dbSessions) {
       if (session.isOverride()) {
-        overrides.set(session.id, session);
+        if (session.isDeleted()) {
+          if (session.updatedAt.getTime() > sinceDate.getTime()) {
+            deletedSessionIds.push(session.id);
+          }
+        } else if (!currentGeneratedSessionIds.has(session.id)) {
+          deletedSessionIds.push(session.id);
+        } else {
+          overrides.set(session.id, session);
+        }
       } else if (session.isAdHoc()) {
         if (session.isDeleted()) {
           if (session.updatedAt.getTime() > sinceDate.getTime()) {
@@ -266,7 +281,6 @@ export class ListClassSessionsUseCase {
 
     this.sortItems(items);
 
-    const currentGeneratedSessionIds = new Set(generatedSessions.map((s) => s.id));
     const dates = enumerateDates(range.from, range.to);
 
     // 1. Defunct sessions from soft-deleted slots
@@ -287,10 +301,12 @@ export class ListClassSessionsUseCase {
 
     // 2. Defunct sessions from active slots that were ended / shortened / split
     for (const slot of changedActiveSlots) {
-      if (slot.createdAt.getTime() <= sinceDate.getTime() && slot.effectiveTo !== null) {
+      if (slot.createdAt.getTime() <= sinceDate.getTime()) {
         for (const d of dates) {
           if (getWeekdayFromIsoDate(d) === slot.weekday) {
-            if (d >= slot.effectiveFrom && d > slot.effectiveTo) {
+            const isOutOfRange =
+              d < slot.effectiveFrom || (slot.effectiveTo !== null && d > slot.effectiveTo);
+            if (isOutOfRange) {
               const id = `${slot.id}:${d}`;
               if (!currentGeneratedSessionIds.has(id)) {
                 deletedSessionIds.push(id);

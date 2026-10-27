@@ -1,4 +1,5 @@
 import { TimetableSlot } from '../../../src/domain/timetable/timetable-slot.entity';
+import { TimetableValidationError } from '../../../src/domain/timetable/timetable.errors';
 import {
   planSlotModification,
   planSlotDeletion,
@@ -163,6 +164,136 @@ describe('Timetable Slot Modifier (Domain)', () => {
           expect(result.previous.effectiveTo).toBe(yesterday);
           expect(result.current.effectiveTo).toBe('2026-11-30');
         }
+      });
+
+      it('preserves previous.effectiveTo when old slot has already expired (< yesterday) without expanding it', () => {
+        const slot = TimetableSlot.create({
+          id: oldSlotId,
+          accountId,
+          weekday: 1,
+          startTime: '07:30',
+          endTime: '08:15',
+          subject: 'Sinh học',
+          tone: 'blue',
+          effectiveFrom: '2026-10-01',
+          effectiveTo: '2026-10-15', // expired before yesterday (2026-10-26)
+          now: new Date('2026-10-01T08:00:00.000Z'),
+        });
+
+        const result = planSlotModification({
+          slot,
+          today,
+          yesterday,
+          newSlotId,
+          now,
+          updates: {
+            subject: 'Sinh học nâng cao',
+            effectiveTo: '2026-11-30',
+          },
+        });
+
+        expect(result.type).toBe('split');
+        if (result.type === 'split') {
+          expect(result.previous.effectiveTo).toBe('2026-10-15');
+          expect(result.current.effectiveFrom).toBe(today);
+          expect(result.current.effectiveTo).toBe('2026-11-30');
+        }
+      });
+
+      it('throws TimetableValidationError when old slot has expired (< today) and updates does not specify effectiveTo', () => {
+        const slot = TimetableSlot.create({
+          id: oldSlotId,
+          accountId,
+          weekday: 1,
+          startTime: '07:30',
+          endTime: '08:15',
+          subject: 'Sinh học',
+          tone: 'blue',
+          effectiveFrom: '2026-10-01',
+          effectiveTo: '2026-10-15', // expired before today (2026-10-27)
+          now: new Date('2026-10-01T08:00:00.000Z'),
+        });
+
+        expect(() =>
+          planSlotModification({
+            slot,
+            today,
+            yesterday,
+            newSlotId,
+            now,
+            updates: {
+              subject: 'Sinh học nâng cao',
+            },
+          }),
+        ).toThrow(
+          new TimetableValidationError(
+            'cannot modify expired slot without specifying a future effectiveTo',
+          ),
+        );
+      });
+
+      it('throws TimetableValidationError when old slot has expired (< today) and updates specifies effectiveTo < today', () => {
+        const slot = TimetableSlot.create({
+          id: oldSlotId,
+          accountId,
+          weekday: 1,
+          startTime: '07:30',
+          endTime: '08:15',
+          subject: 'Sinh học',
+          tone: 'blue',
+          effectiveFrom: '2026-10-01',
+          effectiveTo: '2026-10-15',
+          now: new Date('2026-10-01T08:00:00.000Z'),
+        });
+
+        expect(() =>
+          planSlotModification({
+            slot,
+            today,
+            yesterday,
+            newSlotId,
+            now,
+            updates: {
+              effectiveTo: '2026-10-20',
+            },
+          }),
+        ).toThrow(
+          new TimetableValidationError(
+            'cannot modify expired slot without specifying a future effectiveTo',
+          ),
+        );
+      });
+
+      it('throws TimetableValidationError when old slot expired yesterday and updates does not provide effectiveTo >= today', () => {
+        const slot = TimetableSlot.create({
+          id: oldSlotId,
+          accountId,
+          weekday: 1,
+          startTime: '07:30',
+          endTime: '08:15',
+          subject: 'Sinh học',
+          tone: 'blue',
+          effectiveFrom: '2026-10-01',
+          effectiveTo: yesterday, // expired yesterday (2026-10-26 < 2026-10-27)
+          now: new Date('2026-10-01T08:00:00.000Z'),
+        });
+
+        expect(() =>
+          planSlotModification({
+            slot,
+            today,
+            yesterday,
+            newSlotId,
+            now,
+            updates: {
+              subject: 'Sinh học mới',
+            },
+          }),
+        ).toThrow(
+          new TimetableValidationError(
+            'cannot modify expired slot without specifying a future effectiveTo',
+          ),
+        );
       });
     });
 
