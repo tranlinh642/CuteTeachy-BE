@@ -53,4 +53,49 @@ export class PrismaClassSessionRepository implements ClassSessionRepository {
       update: ClassSessionMapper.toPrismaUpdate(session),
     });
   }
+
+  async transferOverrides(oldSlotId: string, newSlotId: string, fromDate: string): Promise<void> {
+    const overrides = await this.prisma.classSession.findMany({
+      where: {
+        timetableSlotId: oldSlotId,
+        date: { gte: fromDate },
+      },
+    });
+
+    for (const override of overrides) {
+      await this.prisma.classSession.delete({
+        where: { id: override.id },
+      });
+
+      await this.prisma.classSession.create({
+        data: {
+          id: `${newSlotId}:${override.date}`,
+          accountId: override.accountId,
+          timetableSlotId: newSlotId,
+          date: override.date,
+          startTime: override.startTime,
+          endTime: override.endTime,
+          subject: override.subject,
+          grade: override.grade,
+          room: override.room,
+          tone: override.tone,
+          topic: override.topic,
+          prepItems: override.prepItems ?? [],
+          cancelled: override.cancelled,
+          createdAt: override.createdAt,
+          updatedAt: new Date(),
+          deletedAt: override.deletedAt,
+        },
+      });
+    }
+  }
+
+  async deleteOverridesBySlotFromDate(slotId: string, fromDate: string): Promise<void> {
+    await this.prisma.classSession.deleteMany({
+      where: {
+        timetableSlotId: slotId,
+        date: { gte: fromDate },
+      },
+    });
+  }
 }

@@ -30,4 +30,50 @@ export class InMemoryClassSessionRepository implements ClassSessionRepository {
   async save(session: ClassSession): Promise<void> {
     this.items.set(session.id, session);
   }
+
+  async transferOverrides(oldSlotId: string, newSlotId: string, fromDate: string): Promise<void> {
+    for (const [id, session] of Array.from(this.items.entries())) {
+      if (session.timetableSlotId === oldSlotId && session.date >= fromDate) {
+        this.items.delete(id);
+        const newSession = ClassSession.rehydrate({
+          id: `${newSlotId}:${session.date}`,
+          accountId: session.accountId,
+          timetableSlotId: newSlotId,
+          date: session.date,
+          startTime: session.startTime,
+          endTime: session.endTime,
+          subject: session.subject,
+          grade: session.grade,
+          room: session.room,
+          tone: session.tone,
+          topic: session.topic,
+          prepItems: session.prepItems,
+          cancelled: session.cancelled,
+          createdAt: session.createdAt,
+          updatedAt: new Date(),
+          deletedAt: session.deletedAt,
+        });
+        this.items.set(newSession.id, newSession);
+      }
+    }
+  }
+
+  async deleteOverridesBySlotFromDate(slotId: string, fromDate: string): Promise<void> {
+    for (const [id, session] of Array.from(this.items.entries())) {
+      if (session.timetableSlotId === slotId && session.date >= fromDate) {
+        this.items.delete(id);
+      }
+    }
+  }
+
+  snapshot(): Map<string, ClassSession> {
+    return new Map(this.items);
+  }
+
+  restore(snap: Map<string, ClassSession>): void {
+    this.items.clear();
+    for (const [k, v] of snap) {
+      this.items.set(k, v);
+    }
+  }
 }
