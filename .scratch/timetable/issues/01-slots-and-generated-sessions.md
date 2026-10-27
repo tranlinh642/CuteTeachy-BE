@@ -4,7 +4,7 @@
 
 **Blocked by:** S3-BE-01 (nền đồng bộ), S3-BE-02 (`timeZone`)
 
-**Status:** in-progress
+**Status:** done
 
 **Đọc:** SPEC-004 mục *Timetable Slot*, *Class Session* (sinh khi đọc, id ổn định), *API*; ADR BE 0004; `GLOSSARY.md` (Timetable Slot, Class Session).
 
