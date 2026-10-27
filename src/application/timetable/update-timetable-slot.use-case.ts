@@ -96,7 +96,12 @@ export class UpdateTimetableSlotUseCase {
         await repos.timetableSlotRepo.save(plan.current);
 
         if (plan.overridesAction === 'transfer') {
-          await repos.classSessionRepo.transferOverrides(plan.previous.id, plan.current.id, today);
+          await repos.classSessionRepo.transferOverrides(
+            plan.previous.id,
+            plan.current.id,
+            today,
+            plan.current.effectiveTo,
+          );
         } else {
           await repos.classSessionRepo.deleteOverridesBySlotFromDate(plan.previous.id, today);
         }

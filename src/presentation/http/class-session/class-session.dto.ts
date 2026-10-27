@@ -47,16 +47,19 @@ export class CreateAdHocClassSessionRequestDto {
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'endTime must be in HH:mm format' })
   endTime!: string;
 
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MinLength(1, { message: 'subject must be at least 1 character' })
   @MaxLength(120, { message: 'subject cannot exceed 120 characters' })
   subject!: string;
 
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   grade?: string;
 
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   room?: string;
 
@@ -99,16 +102,19 @@ export class UpdateClassSessionRequestDto {
   endTime?: string;
 
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MinLength(1, { message: 'subject must be at least 1 character' })
   @MaxLength(120, { message: 'subject cannot exceed 120 characters' })
   subject?: string;
 
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   grade?: string;
 
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   room?: string;
 

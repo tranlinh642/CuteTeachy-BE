@@ -478,5 +478,151 @@ describe('ListClassSessionsUseCase', () => {
         [`${slot.id}:2026-10-26`, `${slot.id}:2026-11-02`, adHoc.id].sort(),
       );
     });
+
+    it('excludes override from items in delta without slot changes when slot is deleted, has different weekday, or date is out of range', async () => {
+      // Slot 1: soft-deleted at t0 (<= syncTime, so not reported as changed slot)
+      const deletedSlot = TimetableSlot.create({
+        id: '11111111-1111-4111-8111-111111111111',
+        accountId,
+        weekday: 1,
+        startTime: '07:30',
+        endTime: '08:15',
+        subject: 'Sinh học',
+        tone: 'blue',
+        effectiveFrom: '2026-10-01',
+        now: t0,
+      });
+      deletedSlot.delete(t0);
+      await slotRepo.save(deletedSlot);
+
+      // Slot 2: Tuesday slot (weekday 2), created at t0
+      const tuesdaySlot = TimetableSlot.create({
+        id: '22222222-2222-4222-8222-222222222222',
+        accountId,
+        weekday: 2,
+        startTime: '07:30',
+        endTime: '08:15',
+        subject: 'Vật lý',
+        tone: 'pink',
+        effectiveFrom: '2026-10-01',
+        now: t0,
+      });
+      await slotRepo.save(tuesdaySlot);
+
+      // Override for deletedSlot updated at t1
+      const overrideDeletedSlot = ClassSession.createOverride({
+        accountId,
+        timetableSlotId: deletedSlot.id,
+        date: '2026-10-26',
+        topic: 'Buổi của slot đã xoá',
+        now: t1,
+      });
+      await sessionRepo.save(overrideDeletedSlot);
+
+      // Override for tuesdaySlot on a Monday (2026-10-26) updated at t1 (weekday mismatch)
+      const overrideMismatchedWeekday = ClassSession.createOverride({
+        accountId,
+        timetableSlotId: tuesdaySlot.id,
+        date: '2026-10-26', // Monday, but tuesdaySlot is Tuesday
+        topic: 'Sai thứ',
+        now: t1,
+      });
+      await sessionRepo.save(overrideMismatchedWeekday);
+
+      const envelope = await useCase.execute({
+        accountId,
+        from: '2026-10-26',
+        to: '2026-10-31',
+        updatedSince: syncTime,
+      });
+
+      // Neither invalid override should be returned in items
+      expect(envelope.items).toHaveLength(0);
+      expect(envelope.deletedIds).toEqual([]);
+    });
+
+    it('collects defunct overrides into deletedIds when slot weekday changes during slot changes', async () => {
+      // Slot originally on Monday (weekday 1)
+      const slot = TimetableSlot.create({
+        id: '11111111-1111-4111-8111-111111111111',
+        accountId,
+        weekday: 1,
+        startTime: '07:30',
+        endTime: '08:15',
+        subject: 'Sinh học',
+        tone: 'blue',
+        effectiveFrom: '2026-10-26',
+        now: t0,
+      });
+      await slotRepo.save(slot);
+
+      // Override on Monday 2026-10-26 created at t0
+      const mondayOverride = ClassSession.createOverride({
+        accountId,
+        timetableSlotId: slot.id,
+        date: '2026-10-26',
+        topic: 'Chủ đề thứ hai',
+        now: t0,
+      });
+      await sessionRepo.save(mondayOverride);
+
+      // Now at t1 (> syncTime), slot is updated in-place to Wednesday (weekday 3)
+      slot.update({
+        weekday: 3,
+        now: t1,
+      });
+      await slotRepo.save(slot);
+
+      const envelope = await useCase.execute({
+        accountId,
+        from: '2026-10-26',
+        to: '2026-11-01',
+        updatedSince: syncTime,
+      });
+
+      // Items has the new Wednesday session (2026-10-28)
+      expect(envelope.items).toHaveLength(1);
+      expect(envelope.items[0].date).toBe('2026-10-28');
+
+      // Defunct Monday override collected in deletedIds
+      expect(envelope.deletedIds).toContain(`${slot.id}:2026-10-26`);
+    });
+
+    it('collects defunct sessions into deletedIds when slot effectiveFrom is moved to a later date', async () => {
+      // Slot on Monday created at t0 with effectiveFrom 2026-10-01
+      const slot = TimetableSlot.create({
+        id: '11111111-1111-4111-8111-111111111111',
+        accountId,
+        weekday: 1,
+        startTime: '07:30',
+        endTime: '08:15',
+        subject: 'Sinh học',
+        tone: 'blue',
+        effectiveFrom: '2026-10-01',
+        effectiveTo: '2026-11-30',
+        now: t0,
+      });
+      await slotRepo.save(slot);
+
+      // At t1, effectiveFrom is shortened to 2026-11-01
+      slot.update({
+        effectiveFrom: '2026-11-01',
+        now: t1,
+      });
+      await slotRepo.save(slot);
+
+      const envelope = await useCase.execute({
+        accountId,
+        from: '2026-10-26',
+        to: '2026-11-08',
+        updatedSince: syncTime,
+      });
+
+      // Active item: Monday 2026-11-02
+      expect(envelope.items.map((i) => i.date)).toEqual(['2026-11-02']);
+
+      // Defunct session: Monday 2026-10-26 (was effective before t1, now date < effectiveFrom)
+      expect(envelope.deletedIds).toContain(`${slot.id}:2026-10-26`);
+    });
   });
 });
