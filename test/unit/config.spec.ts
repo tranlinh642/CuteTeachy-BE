@@ -38,6 +38,11 @@ describe('AppConfig', () => {
     expect(config.SMTP_PASS).toBe('');
     expect(config.MAIL_FROM).toBe('CuteTeachy <no-reply@cuteteachy.local>');
     expect(config.EMAIL_VERIFICATION_REQUIRED).toBe(false);
+
+    // VAPID defaults
+    expect(config.VAPID_PUBLIC_KEY).toBeDefined();
+    expect(config.VAPID_PRIVATE_KEY).toBeDefined();
+    expect(config.VAPID_SUBJECT).toBe('mailto:dev@cuteteachy.local');
   });
 
   it('successfully parses custom S3 variables for Cloudflare R2 production', () => {

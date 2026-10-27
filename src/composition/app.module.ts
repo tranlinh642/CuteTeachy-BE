@@ -14,6 +14,7 @@ import { NoteModule } from './note.module';
 import { InspirationModule } from './inspiration.module';
 import { TimetableModule } from './timetable.module';
 import { ClassSessionModule } from './class-session.module';
+import { PushSubscriptionModule } from './push-subscription.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ClassSessionModule } from './class-session.module';
     InspirationModule,
     TimetableModule,
     ClassSessionModule,
+    PushSubscriptionModule,
   ],
 })
 export class AppModule {}
