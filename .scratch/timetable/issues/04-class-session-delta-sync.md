@@ -4,7 +4,7 @@
 
 **Blocked by:** S4-BE-03
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 **Đọc:** SPEC-004 mục *API* (`GET /class-sessions` với `updatedSince`); ADR BE 0003, 0004.
 
