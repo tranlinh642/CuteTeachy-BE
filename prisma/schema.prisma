@@ -23,6 +23,15 @@ enum TagTone {
   mint
 }
 
+enum Tone {
+  pink
+  blue
+  beige
+  lavender
+  rose
+  mint
+}
+
 enum TaskCategory {
   school
   personal
@@ -49,6 +58,7 @@ model Account {
   tasks             Task[]
   settings          Settings?
   notes             Note[]
+  timetableSlots    TimetableSlot[]
 
   @@map("accounts")
 }
@@ -257,7 +267,6 @@ model NoteTag {
   @@map("note_tags")
 }
 
-
 model Inspiration {
   id        String   @id
   quoteVi   String
@@ -267,4 +276,29 @@ model Inspiration {
   updatedAt DateTime @updatedAt
 
   @@map("inspirations")
+}
+
+model TimetableSlot {
+  id            String    @id
+  accountId     String
+  weekday       Int
+  startTime     String
+  endTime       String
+  subject       String
+  grade         String?
+  room          String?
+  tone          Tone
+  effectiveFrom String
+  effectiveTo   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  account       Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([accountId, deletedAt])
+  @@index([accountId, updatedAt])
+  @@index([deletedAt])
+  @@map("timetable_slots")
 }

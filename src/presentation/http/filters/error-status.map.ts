@@ -2,6 +2,7 @@ import { HttpStatus } from '@nestjs/common';
 
 export const DOMAIN_ERROR_STATUS_MAP: Record<string, HttpStatus> = {
   validation: HttpStatus.BAD_REQUEST, // 400
+  cannot_delete_generated_session: HttpStatus.BAD_REQUEST, // 400
   invalid_code: HttpStatus.UNAUTHORIZED, // 401
   invalid_credentials: HttpStatus.UNAUTHORIZED, // 401
   unauthorized: HttpStatus.UNAUTHORIZED, // 401
@@ -13,6 +14,7 @@ export const DOMAIN_ERROR_STATUS_MAP: Record<string, HttpStatus> = {
   conflict: HttpStatus.CONFLICT, // 409
   id_conflict: HttpStatus.CONFLICT, // 409
   tag_name_taken: HttpStatus.CONFLICT, // 409
+  timetable_conflict: HttpStatus.CONFLICT, // 409
   gone: HttpStatus.GONE, // 410
   file_too_large: HttpStatus.PAYLOAD_TOO_LARGE, // 413
   unsupported_file_type: HttpStatus.UNSUPPORTED_MEDIA_TYPE, // 415
