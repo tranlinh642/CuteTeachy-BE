@@ -59,6 +59,7 @@ model Account {
   settings          Settings?
   notes             Note[]
   timetableSlots    TimetableSlot[]
+  classSessions     ClassSession[]
 
   @@map("accounts")
 }
@@ -294,11 +295,42 @@ model TimetableSlot {
   updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
 
-  account       Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account       Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  classSessions ClassSession[]
 
   @@index([accountId])
   @@index([accountId, deletedAt])
   @@index([accountId, updatedAt])
   @@index([deletedAt])
   @@map("timetable_slots")
+}
+
+model ClassSession {
+  id              String    @id
+  accountId       String
+  timetableSlotId String?
+  date            String
+  startTime       String?
+  endTime         String?
+  subject         String?
+  grade           String?
+  room            String?
+  tone            Tone?
+  topic           String?
+  prepItems       Json      @default("[]")
+  cancelled       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  account         Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  timetableSlot   TimetableSlot? @relation(fields: [timetableSlotId], references: [id], onDelete: Cascade)
+
+  @@unique([timetableSlotId, date])
+  @@index([accountId])
+  @@index([accountId, date])
+  @@index([accountId, deletedAt])
+  @@index([accountId, updatedAt])
+  @@index([deletedAt])
+  @@map("class_sessions")
 }
