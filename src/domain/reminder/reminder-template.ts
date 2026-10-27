@@ -57,22 +57,33 @@ export function formatClassSessionReminderNotification(
   },
 ): ClassSessionReminderNotificationPayload {
   const isEn = locale === 'en';
-  const title = isEn ? 'Class session' : 'Tiết dạy';
-  const url = `/timetable?date=${encodeURIComponent(session.date)}`;
+  const prefix = isEn ? 'Class session' : 'Tiết dạy';
+  const grade = session.grade ? session.grade.trim() : '';
+  const title = grade ? `${prefix}: ${session.subject} ${grade}` : `${prefix}: ${session.subject}`;
 
-  const subjectPart =
-    session.grade && session.grade.trim()
-      ? `${session.subject} - ${session.grade.trim()}`
-      : session.subject;
-
-  const parts = [subjectPart, session.startTime];
-  if (session.room && session.room.trim()) {
-    parts.push(session.room.trim());
+  const room = session.room ? session.room.trim() : '';
+  let body: string;
+  if (isEn) {
+    if (room) {
+      const roomStr = /^room\b/i.test(room) ? room : `Room ${room}`;
+      body = `Starts at ${session.startTime} in ${roomStr}`;
+    } else {
+      body = `Starts at ${session.startTime}`;
+    }
+  } else {
+    if (room) {
+      const roomStr = /^(phòng|p\.)\b/i.test(room) ? room : `Phòng ${room}`;
+      body = `Bắt đầu lúc ${session.startTime} tại ${roomStr}`;
+    } else {
+      body = `Bắt đầu lúc ${session.startTime}`;
+    }
   }
+
+  const url = `/timetable?date=${encodeURIComponent(session.date)}`;
 
   return {
     title,
-    body: parts.join(', '),
+    body,
     url,
     data: {
       type: 'class_session',

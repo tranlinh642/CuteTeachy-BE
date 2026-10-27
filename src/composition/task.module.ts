@@ -6,6 +6,7 @@ import { CreateTaskUseCase } from '../application/task/create-task.use-case';
 import { UpdateTaskUseCase } from '../application/task/update-task.use-case';
 import { DeleteTaskUseCase } from '../application/task/delete-task.use-case';
 import { ListTasksUseCase } from '../application/task/list-tasks.use-case';
+import { PurgeSoftDeletedTasksUseCase } from '../application/task/purge-soft-deleted-tasks.use-case';
 import { PrismaTaskRepository } from '../infrastructure/persistence/prisma/repositories/prisma-task.repository';
 import { TaskController } from '../presentation/http/task/task.controller';
 import { TagModule } from './tag.module';
@@ -42,7 +43,13 @@ import { TagModule } from './tag.module';
         new ListTasksUseCase(taskRepo, clock),
       inject: [TASK_REPOSITORY, CLOCK],
     },
+    {
+      provide: PurgeSoftDeletedTasksUseCase,
+      useFactory: (taskRepo: TaskRepository, clock: Clock) =>
+        new PurgeSoftDeletedTasksUseCase(taskRepo, clock),
+      inject: [TASK_REPOSITORY, CLOCK],
+    },
   ],
-  exports: [TASK_REPOSITORY],
+  exports: [TASK_REPOSITORY, PurgeSoftDeletedTasksUseCase],
 })
 export class TaskModule {}
