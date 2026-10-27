@@ -61,6 +61,7 @@ model Account {
   timetableSlots    TimetableSlot[]
   classSessions     ClassSession[]
   pushSubscriptions PushSubscription[]
+  sentReminders     SentReminder[]
 
   @@map("accounts")
 }
@@ -349,4 +350,21 @@ model PushSubscription {
 
   @@index([accountId])
   @@map("push_subscriptions")
+}
+
+model SentReminder {
+  id        String   @id @default(uuid())
+  type      String   // 'task' | 'class_session'
+  targetId  String
+  remindAt  DateTime
+  sentAt    DateTime @default(now())
+  accountId String
+
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([type, targetId, remindAt])
+  @@index([accountId])
+  @@index([sentAt])
+  @@index([remindAt])
+  @@map("sent_reminders")
 }
