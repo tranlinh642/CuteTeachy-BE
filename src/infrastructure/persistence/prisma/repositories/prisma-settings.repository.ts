@@ -20,6 +20,13 @@ export class PrismaSettingsRepository implements SettingsRepository, TeacherSett
     return this.findByAccountId(accountId);
   }
 
+  async findPushEnabledTeachers(): Promise<Settings[]> {
+    const rawList = await this.prisma.settings.findMany({
+      where: { pushEnabled: true },
+    });
+    return rawList.map((raw) => SettingsMapper.toDomain(raw));
+  }
+
   async save(settings: Settings): Promise<void> {
     const createData = SettingsMapper.toPrismaCreate(settings);
     const updateData = SettingsMapper.toPrismaUpdate(settings);

@@ -1,4 +1,5 @@
 import {
+  calculateClassSessionRemindAt,
   calculateTaskRemindAt,
   parseZonedTimeToUtc,
 } from '../../../src/domain/reminder/reminder-time.calculator';
@@ -67,6 +68,15 @@ describe('Reminder Time Calculator', () => {
       expect(() => calculateTaskRemindAt('2026-10-27', '10:00', 'UTC', -5)).toThrow(
         ReminderValidationError,
       );
+    });
+  });
+
+  describe('calculateClassSessionRemindAt', () => {
+    it('subtracts leadMinutes from class session start time', () => {
+      // Session at 2026-10-27 07:30 Asia/Ho_Chi_Minh -> start UTC is 00:30:00.000Z
+      // Lead 15 min -> remindAt is 00:15:00.000Z
+      const remindAt = calculateClassSessionRemindAt('2026-10-27', '07:30', 'Asia/Ho_Chi_Minh', 15);
+      expect(remindAt.toISOString()).toBe('2026-10-27T00:15:00.000Z');
     });
   });
 });

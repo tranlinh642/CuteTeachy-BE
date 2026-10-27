@@ -3,6 +3,8 @@ import { SharedModule } from './shared.module';
 import { SettingsModule } from './settings.module';
 import { PushSubscriptionModule } from './push-subscription.module';
 import { TagModule } from './tag.module';
+import { TimetableModule } from './timetable.module';
+import { ClassSessionModule } from './class-session.module';
 import { CLOCK, Clock } from '../application/shared/ports/clock.port';
 import {
   TEACHER_SETTINGS_READER,
@@ -22,6 +24,14 @@ import {
   CRON_SECRET_VERIFIER,
   CronSecretVerifier,
 } from '../application/reminder/ports/cron-secret-verifier.port';
+import {
+  TIMETABLE_SLOT_REPOSITORY,
+  TimetableSlotRepository,
+} from '../application/timetable/ports/timetable-slot.repository.port';
+import {
+  CLASS_SESSION_REPOSITORY,
+  ClassSessionRepository,
+} from '../application/class-session/ports/class-session.repository.port';
 import { DispatchRemindersUseCase } from '../application/reminder/dispatch-reminders.use-case';
 import { PrismaSentReminderRepository } from '../infrastructure/persistence/prisma/repositories/prisma-sent-reminder.repository';
 import { PrismaTaskReminderReader } from '../infrastructure/persistence/prisma/repositories/prisma-task-reminder.repository';
@@ -36,6 +46,8 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
     SettingsModule,
     PushSubscriptionModule,
     TagModule,
+    TimetableModule,
+    ClassSessionModule,
   ],
   controllers: [ReminderController],
   providers: [
@@ -65,6 +77,8 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
         sendPushUseCase: SendPushToTeacherUseCase,
         clock: Clock,
         purgeTagsUseCase: PurgeSoftDeletedTagsUseCase,
+        slotRepo: TimetableSlotRepository,
+        sessionRepo: ClassSessionRepository,
       ) =>
         new DispatchRemindersUseCase(
           taskReader,
@@ -73,6 +87,8 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
           sendPushUseCase,
           clock,
           purgeTagsUseCase,
+          slotRepo,
+          sessionRepo,
         ),
       inject: [
         TASK_REMINDER_READER,
@@ -81,6 +97,8 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
         SendPushToTeacherUseCase,
         CLOCK,
         PurgeSoftDeletedTagsUseCase,
+        TIMETABLE_SLOT_REPOSITORY,
+        CLASS_SESSION_REPOSITORY,
       ],
     },
   ],
