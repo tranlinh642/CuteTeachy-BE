@@ -1,0 +1,56 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { ClassSessionRepository } from '../../../../application/class-session/ports/class-session.repository.port';
+import { ClassSession } from '../../../../domain/class-session/class-session.entity';
+import { PrismaService } from '../prisma.service';
+import { ClassSessionMapper } from '../mappers/class-session.mapper';
+import { Prisma } from '@prisma/client';
+
+export type PrismaClassSessionClient = PrismaService | Prisma.TransactionClient;
+
+@Injectable()
+export class PrismaClassSessionRepository implements ClassSessionRepository {
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaClassSessionClient) {}
+
+  async findById(id: string): Promise<ClassSession | null> {
+    const raw = await this.prisma.classSession.findUnique({
+      where: { id },
+    });
+    return raw ? ClassSessionMapper.toDomain(raw) : null;
+  }
+
+  async findBySlotAndDate(slotId: string, date: string): Promise<ClassSession | null> {
+    const raw = await this.prisma.classSession.findFirst({
+      where: {
+        timetableSlotId: slotId,
+        date,
+      },
+    });
+    return raw ? ClassSessionMapper.toDomain(raw) : null;
+  }
+
+  async findByAccountAndDateRange(
+    accountId: string,
+    from: string,
+    to: string,
+  ): Promise<ClassSession[]> {
+    const rows = await this.prisma.classSession.findMany({
+      where: {
+        accountId,
+        date: {
+          gte: from,
+          lte: to,
+        },
+      },
+    });
+    return rows.map(ClassSessionMapper.toDomain);
+  }
+
+  async save(session: ClassSession): Promise<void> {
+    const data = ClassSessionMapper.toPrismaCreate(session);
+    await this.prisma.classSession.upsert({
+      where: { id: session.id },
+      create: data,
+      update: ClassSessionMapper.toPrismaUpdate(session),
+    });
+  }
+}

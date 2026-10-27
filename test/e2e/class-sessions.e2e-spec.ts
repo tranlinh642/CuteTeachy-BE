@@ -24,6 +24,7 @@ describe('Class Sessions E2E (HTTP API with real Postgres)', () => {
   });
 
   beforeEach(async () => {
+    await prisma.classSession.deleteMany();
     await prisma.timetableSlot.deleteMany();
     await prisma.taskTag.deleteMany();
     await prisma.task.deleteMany();
@@ -223,11 +224,6 @@ describe('Class Sessions E2E (HTTP API with real Postgres)', () => {
         })
         .expect(201);
 
-      // Range covers:
-      // 2026-10-12 (Mon - before effectiveFrom)
-      // 2026-10-19 (Mon - before effectiveFrom)
-      // 2026-10-26 (Mon - within effective window)
-      // 2026-11-02 (Mon - after effectiveTo)
       const res = await request(app.getHttpServer())
         .get('/class-sessions?from=2026-10-12&to=2026-11-05')
         .set('Authorization', `Bearer ${token}`)
@@ -235,6 +231,521 @@ describe('Class Sessions E2E (HTTP API with real Postgres)', () => {
 
       expect(res.body.items).toHaveLength(1);
       expect(res.body.items[0].date).toBe('2026-10-26');
+    });
+  });
+
+  describe('POST /class-sessions (Create Ad-hoc Session)', () => {
+    it('creates an ad-hoc session with 201, timetableSlotId = null, without slot conflict check', async () => {
+      const { token } = await createTeacher('adhoc.teacher@example.com');
+
+      // Create a slot for Monday 08:00 - 09:00
+      const slotId = '33333333-3333-4333-8333-333333333333';
+      await request(app.getHttpServer())
+        .post('/timetable-slots')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: slotId,
+          weekday: 1, // Monday
+          startTime: '08:00',
+          endTime: '09:00',
+          subject: 'Slot môn chính',
+          tone: 'lavender',
+          effectiveFrom: '2026-10-01',
+        })
+        .expect(201);
+
+      // Create ad-hoc session overlapping the exact same time (08:00 - 09:00 on Monday 2026-10-26)
+      // Spec: ad-hoc session does NOT check conflict with slots!
+      const adHocId = '44444444-4444-4444-8444-444444444444';
+      const createRes = await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: adHocId,
+          date: '2026-10-26',
+          startTime: '08:00',
+          endTime: '09:00',
+          subject: 'Dạy bù đặc biệt',
+          grade: '12B',
+          room: 'Phòng thực hành',
+          tone: 'rose',
+          topic: 'Thực hành thí nghiệm',
+          prepItems: [{ id: 'p1', label: 'Dụng cụ thí nghiệm', done: false }],
+          cancelled: false,
+        })
+        .expect(201);
+
+      expect(createRes.body.id).toBe(adHocId);
+      expect(createRes.body.timetableSlotId).toBeNull();
+      expect(createRes.body.subject).toBe('Dạy bù đặc biệt');
+      expect(createRes.body.grade).toBe('12B');
+      expect(createRes.body.room).toBe('Phòng thực hành');
+      expect(createRes.body.tone).toBe('rose');
+      expect(createRes.body.topic).toBe('Thực hành thí nghiệm');
+      expect(createRes.body.prepItems).toHaveLength(1);
+      expect(createRes.body.cancelled).toBe(false);
+
+      // Idempotency: exact same payload returns 200 with same session
+      const idempotentRes = await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: adHocId,
+          date: '2026-10-26',
+          startTime: '08:00',
+          endTime: '09:00',
+          subject: 'Dạy bù đặc biệt',
+          grade: '12B',
+          room: 'Phòng thực hành',
+          tone: 'rose',
+          topic: 'Thực hành thí nghiệm',
+          prepItems: [{ id: 'p1', label: 'Dụng cụ thí nghiệm', done: false }],
+          cancelled: false,
+        })
+        .expect(200);
+
+      expect(idempotentRes.body.id).toBe(adHocId);
+
+      // Conflict: same id but different payload returns 409 conflict
+      const conflictRes = await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: adHocId,
+          date: '2026-10-26',
+          startTime: '08:00',
+          endTime: '09:00',
+          subject: 'Tên môn học khác',
+          tone: 'rose',
+        })
+        .expect(409);
+
+      expect(conflictRes.body.code).toBe('conflict');
+    });
+
+    it('returns 409 id_conflict when id belongs to another teacher', async () => {
+      const teacher1 = await createTeacher('t1@example.com');
+      const teacher2 = await createTeacher('t2@example.com');
+
+      const adHocId = '55555555-5555-4555-8555-555555555555';
+      await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${teacher1.token}`)
+        .send({
+          id: adHocId,
+          date: '2026-10-28',
+          startTime: '08:00',
+          endTime: '09:00',
+          subject: 'Toán',
+          tone: 'blue',
+        })
+        .expect(201);
+
+      const conflictRes = await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${teacher2.token}`)
+        .send({
+          id: adHocId,
+          date: '2026-10-28',
+          startTime: '08:00',
+          endTime: '09:00',
+          subject: 'Toán',
+          tone: 'blue',
+        })
+        .expect(409);
+
+      expect(conflictRes.body.code).toBe('id_conflict');
+    });
+
+    it('returns 410 gone when attempting to create with a soft-deleted id', async () => {
+      const { token } = await createTeacher('t3@example.com');
+      const adHocId = '66666666-6666-4666-8666-666666666666';
+
+      await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: adHocId,
+          date: '2026-10-28',
+          startTime: '08:00',
+          endTime: '09:00',
+          subject: 'Toán',
+          tone: 'blue',
+        })
+        .expect(201);
+
+      // Delete the session
+      await request(app.getHttpServer())
+        .delete(`/class-sessions/${adHocId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(204);
+
+      // Re-create with same id -> 410 gone
+      const goneRes = await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: adHocId,
+          date: '2026-10-28',
+          startTime: '08:00',
+          endTime: '09:00',
+          subject: 'Toán',
+          tone: 'blue',
+        })
+        .expect(410);
+
+      expect(goneRes.body.code).toBe('gone');
+    });
+  });
+
+  describe('PATCH /class-sessions/:id (Generated Session Override)', () => {
+    it('creates and updates override on generated session, accepts only topic, prepItems, cancelled', async () => {
+      const { token } = await createTeacher('patch.slot@example.com');
+
+      const slotId = '77777777-7777-4777-8777-777777777777';
+      await request(app.getHttpServer())
+        .post('/timetable-slots')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: slotId,
+          weekday: 1, // Monday
+          startTime: '07:30',
+          endTime: '08:15',
+          subject: 'Sinh học',
+          grade: '10A',
+          room: '302',
+          tone: 'blue',
+          effectiveFrom: '2026-10-01',
+        })
+        .expect(201);
+
+      const generatedId = `${slotId}:2026-10-26`;
+
+      // 1. PATCH topic and prepItems
+      const patchRes1 = await request(app.getHttpServer())
+        .patch(`/class-sessions/${generatedId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          topic: 'Chương 1: Giới thiệu vi sinh vật',
+          prepItems: [
+            { id: 'prep-1', label: 'Mang lam kính', done: false },
+            { id: 'prep-2', label: 'Chuẩn bị cồn', done: true },
+          ],
+        })
+        .expect(200);
+
+      expect(patchRes1.body.id).toBe(generatedId);
+      expect(patchRes1.body.timetableSlotId).toBe(slotId);
+      expect(patchRes1.body.topic).toBe('Chương 1: Giới thiệu vi sinh vật');
+      expect(patchRes1.body.prepItems).toHaveLength(2);
+      expect(patchRes1.body.prepItems[1].done).toBe(true);
+      expect(patchRes1.body.cancelled).toBe(false);
+
+      // 2. PATCH cancelled = true
+      const patchRes2 = await request(app.getHttpServer())
+        .patch(`/class-sessions/${generatedId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          cancelled: true,
+        })
+        .expect(200);
+
+      expect(patchRes2.body.cancelled).toBe(true);
+      expect(patchRes2.body.topic).toBe('Chương 1: Giới thiệu vi sinh vật'); // topic is preserved
+
+      // 3. GET /class-sessions confirms cancelled = true is still returned in list
+      const getRes = await request(app.getHttpServer())
+        .get('/class-sessions?from=2026-10-26&to=2026-10-30')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(getRes.body.items).toHaveLength(1);
+      expect(getRes.body.items[0].id).toBe(generatedId);
+      expect(getRes.body.items[0].cancelled).toBe(true);
+      expect(getRes.body.items[0].topic).toBe('Chương 1: Giới thiệu vi sinh vật');
+
+      // 4. Restore session: cancelled = false
+      const restoreRes = await request(app.getHttpServer())
+        .patch(`/class-sessions/${generatedId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          cancelled: false,
+        })
+        .expect(200);
+
+      expect(restoreRes.body.cancelled).toBe(false);
+
+      // 5. Attempting to change structural fields on generated session returns 400 validation error
+      const invalidRes = await request(app.getHttpServer())
+        .patch(`/class-sessions/${generatedId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          subject: 'Toán học',
+        })
+        .expect(400);
+
+      expect(invalidRes.body.code).toBe('validation');
+    });
+
+    it('returns 404 when generated session does not match slot or effective dates', async () => {
+      const { token } = await createTeacher('patch.invalid@example.com');
+
+      const slotId = '88888888-8888-4888-8888-888888888888';
+      await request(app.getHttpServer())
+        .post('/timetable-slots')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: slotId,
+          weekday: 1, // Monday
+          startTime: '07:30',
+          endTime: '08:15',
+          subject: 'Sinh học',
+          tone: 'blue',
+          effectiveFrom: '2026-10-20',
+          effectiveTo: '2026-10-27',
+        })
+        .expect(201);
+
+      // Tuesday (wrong weekday)
+      await request(app.getHttpServer())
+        .patch(`/class-sessions/${slotId}:2026-10-27`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ topic: 'Test' })
+        .expect(404);
+
+      // Outside effectiveTo
+      await request(app.getHttpServer())
+        .patch(`/class-sessions/${slotId}:2026-11-02`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ topic: 'Test' })
+        .expect(404);
+    });
+  });
+
+  describe('PATCH /class-sessions/:id (Ad-hoc Session Update)', () => {
+    it('allows updating all fields on an ad-hoc session', async () => {
+      const { token } = await createTeacher('adhoc.patch@example.com');
+
+      const adHocId = '99999999-9999-4999-8999-999999999999';
+      await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: adHocId,
+          date: '2026-10-27',
+          startTime: '09:00',
+          endTime: '10:00',
+          subject: 'Dạy bù',
+          tone: 'beige',
+        })
+        .expect(201);
+
+      const updateRes = await request(app.getHttpServer())
+        .patch(`/class-sessions/${adHocId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          date: '2026-10-28',
+          startTime: '09:30',
+          endTime: '10:30',
+          subject: 'Dạy bù Toán',
+          grade: '11A',
+          room: 'P.201',
+          tone: 'mint',
+          topic: 'Hàm số lượng giác',
+          prepItems: [{ id: 'p1', label: 'Bút dạ', done: false }],
+          cancelled: true,
+        })
+        .expect(200);
+
+      expect(updateRes.body.id).toBe(adHocId);
+      expect(updateRes.body.date).toBe('2026-10-28');
+      expect(updateRes.body.startTime).toBe('09:30');
+      expect(updateRes.body.endTime).toBe('10:30');
+      expect(updateRes.body.subject).toBe('Dạy bù Toán');
+      expect(updateRes.body.grade).toBe('11A');
+      expect(updateRes.body.room).toBe('P.201');
+      expect(updateRes.body.tone).toBe('mint');
+      expect(updateRes.body.topic).toBe('Hàm số lượng giác');
+      expect(updateRes.body.prepItems).toHaveLength(1);
+      expect(updateRes.body.cancelled).toBe(true);
+    });
+  });
+
+  describe('DELETE /class-sessions/:id', () => {
+    it('returns 400 cannot_delete_generated_session when attempting to delete a generated session', async () => {
+      const { token } = await createTeacher('del.gen@example.com');
+
+      const slotId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      await request(app.getHttpServer())
+        .post('/timetable-slots')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: slotId,
+          weekday: 1,
+          startTime: '07:30',
+          endTime: '08:15',
+          subject: 'Sinh học',
+          tone: 'blue',
+          effectiveFrom: '2026-10-01',
+        })
+        .expect(201);
+
+      const generatedId = `${slotId}:2026-10-26`;
+
+      // Case 1: Session not yet overridden
+      const res1 = await request(app.getHttpServer())
+        .delete(`/class-sessions/${generatedId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+
+      expect(res1.body.code).toBe('cannot_delete_generated_session');
+
+      // Case 2: Session has override in DB
+      await request(app.getHttpServer())
+        .patch(`/class-sessions/${generatedId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ topic: 'Đã có override' })
+        .expect(200);
+
+      const res2 = await request(app.getHttpServer())
+        .delete(`/class-sessions/${generatedId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+
+      expect(res2.body.code).toBe('cannot_delete_generated_session');
+    });
+
+    it('soft deletes ad-hoc session with 204, excludes it from subsequent GET', async () => {
+      const { token } = await createTeacher('del.adhoc@example.com');
+
+      const adHocId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+      await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: adHocId,
+          date: '2026-10-27',
+          startTime: '09:00',
+          endTime: '10:00',
+          subject: 'Buổi lẻ cần xoá',
+          tone: 'pink',
+        })
+        .expect(201);
+
+      // Verify it appears in GET
+      const getBefore = await request(app.getHttpServer())
+        .get('/class-sessions?from=2026-10-26&to=2026-10-30')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(getBefore.body.items).toHaveLength(1);
+
+      // DELETE ad-hoc session
+      await request(app.getHttpServer())
+        .delete(`/class-sessions/${adHocId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(204);
+
+      // Subsequent GET should not return the deleted ad-hoc session
+      const getAfter = await request(app.getHttpServer())
+        .get('/class-sessions?from=2026-10-26&to=2026-10-30')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(getAfter.body.items).toHaveLength(0);
+
+      // Idempotent delete returns 204
+      await request(app.getHttpServer())
+        .delete(`/class-sessions/${adHocId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(204);
+    });
+  });
+
+  describe('GET /class-sessions (Combined Generated + Overrides + Ad-hoc)', () => {
+    it('returns generated sessions with overrides applied alongside ad-hoc sessions, properly sorted', async () => {
+      const { token } = await createTeacher('combined@example.com');
+
+      // Slot 1: Monday (2026-10-26) 07:30
+      const slotId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+      await request(app.getHttpServer())
+        .post('/timetable-slots')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: slotId,
+          weekday: 1,
+          startTime: '07:30',
+          endTime: '08:15',
+          subject: 'Sinh học slot',
+          tone: 'blue',
+          effectiveFrom: '2026-10-01',
+        })
+        .expect(201);
+
+      // Override the Monday slot session with topic and cancelled = true
+      const generatedId = `${slotId}:2026-10-26`;
+      await request(app.getHttpServer())
+        .patch(`/class-sessions/${generatedId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          topic: 'Buổi sinh học bị huỷ do họp chuyên môn',
+          cancelled: true,
+        })
+        .expect(200);
+
+      // Ad-hoc 1: Monday 07:00 (earlier time than slot)
+      const adHocMondayEarly = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+      await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: adHocMondayEarly,
+          date: '2026-10-26',
+          startTime: '07:00',
+          endTime: '07:30',
+          subject: 'Chào cờ / Sinh hoạt',
+          tone: 'rose',
+        })
+        .expect(201);
+
+      // Ad-hoc 2: Tuesday 2026-10-27 08:00
+      const adHocTuesday = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+      await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: adHocTuesday,
+          date: '2026-10-27',
+          startTime: '08:00',
+          endTime: '09:00',
+          subject: 'Dạy bù Toán',
+          tone: 'mint',
+        })
+        .expect(201);
+
+      // Query for the week
+      const res = await request(app.getHttpServer())
+        .get('/class-sessions?from=2026-10-26&to=2026-10-30')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(res.body.items).toHaveLength(3);
+
+      // 1st: Monday 07:00 (adHocMondayEarly)
+      expect(res.body.items[0].id).toBe(adHocMondayEarly);
+      expect(res.body.items[0].startTime).toBe('07:00');
+      expect(res.body.items[0].timetableSlotId).toBeNull();
+
+      // 2nd: Monday 07:30 (generated with override applied)
+      expect(res.body.items[1].id).toBe(generatedId);
+      expect(res.body.items[1].startTime).toBe('07:30');
+      expect(res.body.items[1].topic).toBe('Buổi sinh học bị huỷ do họp chuyên môn');
+      expect(res.body.items[1].cancelled).toBe(true);
+
+      // 3rd: Tuesday 08:00 (adHocTuesday)
+      expect(res.body.items[2].id).toBe(adHocTuesday);
+      expect(res.body.items[2].date).toBe('2026-10-27');
+      expect(res.body.items[2].startTime).toBe('08:00');
     });
   });
 });

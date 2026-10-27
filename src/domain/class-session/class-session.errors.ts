@@ -15,3 +15,11 @@ export class CannotDeleteGeneratedSessionError extends DomainError {
     super(message);
   }
 }
+
+export class PayloadConflictError extends DomainError {
+  readonly code = 'conflict';
+
+  constructor(message = 'Payload differs from existing resource') {
+    super(message);
+  }
+}
