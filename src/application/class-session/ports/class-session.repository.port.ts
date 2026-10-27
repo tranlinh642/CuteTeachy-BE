@@ -11,4 +11,6 @@ export interface ClassSessionRepository {
     to: string,
   ): Promise<ClassSession[]>;
   save(session: ClassSession): Promise<void>;
+  transferOverrides(oldSlotId: string, newSlotId: string, fromDate: string): Promise<void>;
+  deleteOverridesBySlotFromDate(slotId: string, fromDate: string): Promise<void>;
 }

@@ -1,9 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
+  Param,
+  Patch,
   Post,
   Query,
   Res,
@@ -11,13 +14,19 @@ import {
 import { Response } from 'express';
 import { CreateTimetableSlotUseCase } from '../../../application/timetable/create-timetable-slot.use-case';
 import { ListTimetableSlotsUseCase } from '../../../application/timetable/list-timetable-slots.use-case';
-import { TimetableSlotDto } from '../../../application/timetable/timetable-slot.dto';
+import { UpdateTimetableSlotUseCase } from '../../../application/timetable/update-timetable-slot.use-case';
+import { DeleteTimetableSlotUseCase } from '../../../application/timetable/delete-timetable-slot.use-case';
+import {
+  TimetableSlotDto,
+  UpdateTimetableSlotResult,
+} from '../../../application/timetable/timetable-slot.dto';
 import { SyncEnvelope } from '../../../domain/shared/sync-envelope';
 import { AccessTokenPayload } from '../../../application/account/ports/token.service.port';
 import { CurrentUser } from '../auth/current-user.decorator';
 import {
   CreateTimetableSlotRequestDto,
   ListTimetableSlotsQueryDto,
+  UpdateTimetableSlotRequestDto,
 } from './timetable.dto';
 
 @Controller('timetable-slots')
@@ -25,6 +34,8 @@ export class TimetableController {
   constructor(
     private readonly createTimetableSlotUseCase: CreateTimetableSlotUseCase,
     private readonly listTimetableSlotsUseCase: ListTimetableSlotsUseCase,
+    private readonly updateTimetableSlotUseCase: UpdateTimetableSlotUseCase,
+    private readonly deleteTimetableSlotUseCase: DeleteTimetableSlotUseCase,
   ) {}
 
   @Post()
@@ -65,6 +76,40 @@ export class TimetableController {
     return this.listTimetableSlotsUseCase.execute({
       accountId: user.sub,
       updatedSince: query.updatedSince,
+    });
+  }
+
+  @Patch(':id')
+  @HttpCode(HttpStatus.OK)
+  async update(
+    @CurrentUser() user: AccessTokenPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateTimetableSlotRequestDto,
+  ): Promise<UpdateTimetableSlotResult> {
+    return this.updateTimetableSlotUseCase.execute({
+      id,
+      accountId: user.sub,
+      weekday: dto.weekday,
+      startTime: dto.startTime,
+      endTime: dto.endTime,
+      subject: dto.subject,
+      grade: dto.grade,
+      room: dto.room,
+      tone: dto.tone,
+      effectiveFrom: dto.effectiveFrom,
+      effectiveTo: dto.effectiveTo,
+    });
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async delete(
+    @CurrentUser() user: AccessTokenPayload,
+    @Param('id') id: string,
+  ): Promise<void> {
+    await this.deleteTimetableSlotUseCase.execute({
+      id,
+      accountId: user.sub,
     });
   }
 }

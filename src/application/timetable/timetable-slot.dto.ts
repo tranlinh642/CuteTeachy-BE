@@ -43,3 +43,8 @@ export function toTimetableSlotDto(slot: TimetableSlot): TimetableSlotDto {
 
   return dto;
 }
+
+export interface UpdateTimetableSlotResult {
+  previous?: TimetableSlotDto;
+  current: TimetableSlotDto;
+}

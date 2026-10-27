@@ -38,6 +38,19 @@ export interface RehydrateTimetableSlotProps {
   deletedAt?: Date | null;
 }
 
+export interface UpdateTimetableSlotProps {
+  weekday?: number;
+  startTime?: string;
+  endTime?: string;
+  subject?: string;
+  grade?: string | null;
+  room?: string | null;
+  tone?: Tone;
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
+  now: Date;
+}
+
 export class TimetableSlot implements SyncableEntity {
   private constructor(
     private readonly _id: string,
@@ -162,6 +175,53 @@ export class TimetableSlot implements SyncableEntity {
 
   isDeleted(): boolean {
     return this._deletedAt !== null;
+  }
+
+  hasPastSessions(today: string): boolean {
+    return this._effectiveFrom < today;
+  }
+
+  endAt(yesterday: string, now: Date): void {
+    TimetableSlot.assertValidCalendarDate(yesterday, 'effectiveTo');
+    this._effectiveTo = yesterday;
+    this._updatedAt = now;
+  }
+
+  delete(now: Date): void {
+    this._deletedAt = now;
+    this._updatedAt = now;
+  }
+
+  update(props: UpdateTimetableSlotProps): void {
+    const newWeekday = props.weekday ?? this._weekday;
+    const newStartTime = props.startTime ?? this._startTime;
+    const newEndTime = props.endTime ?? this._endTime;
+    const newSubject = props.subject !== undefined ? props.subject : this._subject;
+    const newGrade = props.grade !== undefined ? props.grade : this._grade;
+    const newRoom = props.room !== undefined ? props.room : this._room;
+    const newTone = props.tone ?? this._tone;
+    const newEffectiveFrom = props.effectiveFrom ?? this._effectiveFrom;
+    const newEffectiveTo =
+      props.effectiveTo !== undefined ? props.effectiveTo : this._effectiveTo;
+
+    TimetableSlot.validateWeekday(newWeekday);
+    TimetableSlot.validateTimes(newStartTime, newEndTime);
+    const validSubject = TimetableSlot.validateSubject(newSubject);
+    const validGrade = TimetableSlot.normalizeOptionalString(newGrade);
+    const validRoom = TimetableSlot.normalizeOptionalString(newRoom);
+    TimetableSlot.validateTone(newTone);
+    TimetableSlot.validateEffectiveDates(newEffectiveFrom, newEffectiveTo);
+
+    this._weekday = newWeekday;
+    this._startTime = newStartTime;
+    this._endTime = newEndTime;
+    this._subject = validSubject;
+    this._grade = validGrade;
+    this._room = validRoom;
+    this._tone = newTone;
+    this._effectiveFrom = newEffectiveFrom;
+    this._effectiveTo = newEffectiveTo ? newEffectiveTo : null;
+    this._updatedAt = props.now;
   }
 
   matchesPayload(payload: {

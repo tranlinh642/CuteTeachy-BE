@@ -7,6 +7,8 @@ import { PrismaService } from './prisma.service';
 import { PrismaTagRepository } from './repositories/prisma-tag.repository';
 import { PrismaTaskRepository } from './repositories/prisma-task.repository';
 import { PrismaNoteRepository } from './repositories/prisma-note.repository';
+import { PrismaTimetableSlotRepository } from './repositories/prisma-timetable-slot.repository';
+import { PrismaClassSessionRepository } from './repositories/prisma-class-session.repository';
 
 @Injectable()
 export class PrismaUnitOfWork implements UnitOfWork {
@@ -17,11 +19,15 @@ export class PrismaUnitOfWork implements UnitOfWork {
       const tagRepo = new PrismaTagRepository(tx);
       const taskRepo = new PrismaTaskRepository(tx);
       const noteRepo = new PrismaNoteRepository(tx);
+      const timetableSlotRepo = new PrismaTimetableSlotRepository(tx);
+      const classSessionRepo = new PrismaClassSessionRepository(tx);
 
       return work({
         tagRepo,
         taskRepo,
         noteRepo,
+        timetableSlotRepo,
+        classSessionRepo,
       });
     });
   }

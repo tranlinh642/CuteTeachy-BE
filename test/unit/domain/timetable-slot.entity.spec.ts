@@ -351,4 +351,149 @@ describe('TimetableSlot Entity', () => {
       ).toBe(false);
     });
   });
+
+  describe('hasPastSessions', () => {
+    it('returns true when effectiveFrom is before today', () => {
+      const slot = TimetableSlot.create({
+        id: validId,
+        accountId,
+        weekday: 1,
+        startTime: '07:30',
+        endTime: '08:15',
+        subject: 'Sinh học',
+        tone: 'blue',
+        effectiveFrom: '2026-10-01',
+        now,
+      });
+
+      expect(slot.hasPastSessions('2026-10-27')).toBe(true);
+    });
+
+    it('returns false when effectiveFrom is equal to today or in the future', () => {
+      const slot = TimetableSlot.create({
+        id: validId,
+        accountId,
+        weekday: 1,
+        startTime: '07:30',
+        endTime: '08:15',
+        subject: 'Sinh học',
+        tone: 'blue',
+        effectiveFrom: '2026-10-27',
+        now,
+      });
+
+      expect(slot.hasPastSessions('2026-10-27')).toBe(false);
+      expect(slot.hasPastSessions('2026-10-20')).toBe(false);
+    });
+  });
+
+  describe('endAt', () => {
+    it('sets effectiveTo to yesterday and updates updatedAt', () => {
+      const slot = TimetableSlot.create({
+        id: validId,
+        accountId,
+        weekday: 1,
+        startTime: '07:30',
+        endTime: '08:15',
+        subject: 'Sinh học',
+        tone: 'blue',
+        effectiveFrom: '2026-10-01',
+        effectiveTo: '2026-12-31',
+        now,
+      });
+
+      const updatedTime = new Date('2026-10-27T10:00:00.000Z');
+      slot.endAt('2026-10-26', updatedTime);
+
+      expect(slot.effectiveTo).toBe('2026-10-26');
+      expect(slot.updatedAt).toEqual(updatedTime);
+      expect(slot.isDeleted()).toBe(false);
+    });
+  });
+
+  describe('delete', () => {
+    it('sets deletedAt and updates updatedAt', () => {
+      const slot = TimetableSlot.create({
+        id: validId,
+        accountId,
+        weekday: 1,
+        startTime: '07:30',
+        endTime: '08:15',
+        subject: 'Sinh học',
+        tone: 'blue',
+        effectiveFrom: '2026-10-27',
+        now,
+      });
+
+      const deletedTime = new Date('2026-10-27T10:00:00.000Z');
+      slot.delete(deletedTime);
+
+      expect(slot.isDeleted()).toBe(true);
+      expect(slot.deletedAt).toEqual(deletedTime);
+      expect(slot.updatedAt).toEqual(deletedTime);
+    });
+  });
+
+  describe('update', () => {
+    it('updates fields in place and validates', () => {
+      const slot = TimetableSlot.create({
+        id: validId,
+        accountId,
+        weekday: 1,
+        startTime: '07:30',
+        endTime: '08:15',
+        subject: 'Sinh học',
+        tone: 'blue',
+        effectiveFrom: '2026-10-27',
+        now,
+      });
+
+      const updatedTime = new Date('2026-10-27T11:00:00.000Z');
+      slot.update({
+        weekday: 3,
+        startTime: '08:30',
+        endTime: '09:15',
+        subject: 'Hóa học 11',
+        grade: '11B',
+        room: 'Lab 2',
+        tone: 'mint',
+        effectiveFrom: '2026-10-28',
+        effectiveTo: '2026-12-20',
+        now: updatedTime,
+      });
+
+      expect(slot.weekday).toBe(3);
+      expect(slot.startTime).toBe('08:30');
+      expect(slot.endTime).toBe('09:15');
+      expect(slot.subject).toBe('Hóa học 11');
+      expect(slot.grade).toBe('11B');
+      expect(slot.room).toBe('Lab 2');
+      expect(slot.tone).toBe('mint');
+      expect(slot.effectiveFrom).toBe('2026-10-28');
+      expect(slot.effectiveTo).toBe('2026-12-20');
+      expect(slot.updatedAt).toEqual(updatedTime);
+    });
+
+    it('throws validation error when updated times are invalid', () => {
+      const slot = TimetableSlot.create({
+        id: validId,
+        accountId,
+        weekday: 1,
+        startTime: '07:30',
+        endTime: '08:15',
+        subject: 'Sinh học',
+        tone: 'blue',
+        effectiveFrom: '2026-10-27',
+        now,
+      });
+
+      expect(() => {
+        slot.update({
+          startTime: '09:00',
+          endTime: '08:00',
+          now,
+        });
+      }).toThrow(TimetableValidationError);
+    });
+  });
 });
