@@ -4,7 +4,7 @@
 
 **Blocked by:** S4-BE-01
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 **Đọc:** SPEC-004 mục *Class Session* (bản ghi đè, buổi lẻ), *API*; ADR BE 0004.
 
