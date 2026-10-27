@@ -4,7 +4,7 @@
 
 **Blocked by:** S5-BE-02, S4-BE-02 (ghi đè + buổi lẻ)
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 **Đọc:** SPEC-005 mục *Reminder* (Class Session, nội dung); SPEC-004 mục *Module BE* (domain sinh buổi dùng lại); ADR BE 0004.
 
