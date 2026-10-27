@@ -120,6 +120,27 @@ describe('Class Sessions E2E (HTTP API with real Postgres)', () => {
 
       expect(res.body.code).toBe('validation');
     });
+
+    it('returns 400 when updatedSince is older than 30 days', async () => {
+      const { token } = await createTeacher('teacher@example.com');
+      const oldDate = new Date(Date.now() - 32 * 24 * 60 * 60 * 1000).toISOString();
+
+      const res = await request(app.getHttpServer())
+        .get(`/class-sessions?from=2026-10-01&to=2026-10-15&updatedSince=${encodeURIComponent(oldDate)}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+
+      expect(res.body.code).toBe('validation');
+    });
+
+    it('returns 400 when updatedSince is invalid date string', async () => {
+      const { token } = await createTeacher('teacher@example.com');
+
+      await request(app.getHttpServer())
+        .get('/class-sessions?from=2026-10-01&to=2026-10-15&updatedSince=invalid-date')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
   });
 
   describe('GET /class-sessions (Generation from Slots)', () => {
@@ -746,6 +767,248 @@ describe('Class Sessions E2E (HTTP API with real Postgres)', () => {
       expect(res.body.items[2].id).toBe(adHocTuesday);
       expect(res.body.items[2].date).toBe('2026-10-27');
       expect(res.body.items[2].startTime).toBe('08:00');
+    });
+  });
+
+  describe('GET /class-sessions (Delta Sync with updatedSince)', () => {
+    it('returns only changed overrides and ad-hocs when no slot has changed', async () => {
+      const { token } = await createTeacher('teacher.delta1@example.com');
+      // Create slot S1: Monday (weekday 1) 07:30-08:15, effective 2026-10-01 to 2026-10-31
+      const slotId = '11111111-1111-4111-8111-111111111111';
+      await request(app.getHttpServer())
+        .post('/timetable-slots')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: slotId,
+          weekday: 1,
+          startTime: '07:30',
+          endTime: '08:15',
+          subject: 'Sinh học',
+          tone: 'blue',
+          effectiveFrom: '2026-10-01',
+          effectiveTo: '2026-10-31',
+        })
+        .expect(201);
+
+      // Create ad-hoc session A1: Wednesday 2026-10-28
+      const adHoc1Id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: adHoc1Id,
+          date: '2026-10-28',
+          startTime: '09:00',
+          endTime: '10:00',
+          subject: 'Dạy bù cũ',
+          tone: 'mint',
+        })
+        .expect(201);
+
+      // Create ad-hoc session A2: Thursday 2026-10-29 (will be soft-deleted)
+      const adHoc2Id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+      await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: adHoc2Id,
+          date: '2026-10-29',
+          startTime: '10:00',
+          endTime: '11:00',
+          subject: 'Buổi sắp bị xoá',
+          tone: 'lavender',
+        })
+        .expect(201);
+
+      // First sync to get checkpoint
+      const firstSync = await request(app.getHttpServer())
+        .get('/class-sessions?from=2026-10-26&to=2026-10-31')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const checkpoint = firstSync.body.serverTime;
+      await new Promise((r) => setTimeout(r, 100));
+
+      // Override Monday session (slotId:2026-10-26)
+      await request(app.getHttpServer())
+        .patch(`/class-sessions/${slotId}:2026-10-26`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          topic: 'Chủ đề sau checkpoint',
+          cancelled: true,
+        })
+        .expect(200);
+
+      // Create new ad-hoc session A3: Friday 2026-10-30
+      const adHoc3Id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+      await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: adHoc3Id,
+          date: '2026-10-30',
+          startTime: '14:00',
+          endTime: '15:00',
+          subject: 'Dạy bù mới sau sync',
+          tone: 'rose',
+        })
+        .expect(201);
+
+      // Delete ad-hoc session A2
+      await request(app.getHttpServer())
+        .delete(`/class-sessions/${adHoc2Id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(204);
+
+      // Delta sync query
+      const deltaRes = await request(app.getHttpServer())
+        .get(`/class-sessions?from=2026-10-26&to=2026-10-31&updatedSince=${encodeURIComponent(checkpoint)}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      // Items should contain only the changed override and changed ad-hoc A3
+      expect(deltaRes.body.items).toHaveLength(2);
+      expect(deltaRes.body.items[0].id).toBe(`${slotId}:2026-10-26`);
+      expect(deltaRes.body.items[0].topic).toBe('Chủ đề sau checkpoint');
+      expect(deltaRes.body.items[0].cancelled).toBe(true);
+      expect(deltaRes.body.items[1].id).toBe(adHoc3Id);
+
+      // DeletedIds should contain A2
+      expect(deltaRes.body.deletedIds).toEqual([adHoc2Id]);
+      expect(deltaRes.body.serverTime).toBeDefined();
+    });
+
+    it('returns all sessions in range when a slot was created after updatedSince', async () => {
+      const { token } = await createTeacher('teacher.delta2@example.com');
+      const initialRes = await request(app.getHttpServer())
+        .get('/class-sessions?from=2026-10-26&to=2026-10-31')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const checkpoint = initialRes.body.serverTime;
+      await new Promise((r) => setTimeout(r, 100));
+
+      // Create slot
+      const slotId = '11111111-1111-4111-8111-111111111111';
+      await request(app.getHttpServer())
+        .post('/timetable-slots')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: slotId,
+          weekday: 1,
+          startTime: '07:30',
+          endTime: '08:15',
+          subject: 'Sinh học',
+          tone: 'blue',
+          effectiveFrom: '2026-10-01',
+          effectiveTo: '2026-10-31',
+        })
+        .expect(201);
+
+      const deltaRes = await request(app.getHttpServer())
+        .get(`/class-sessions?from=2026-10-26&to=2026-10-31&updatedSince=${encodeURIComponent(checkpoint)}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(deltaRes.body.items).toHaveLength(1);
+      expect(deltaRes.body.items[0].id).toBe(`${slotId}:2026-10-26`);
+      expect(deltaRes.body.deletedIds).toEqual([]);
+    });
+
+    it('returns all current sessions and deletedIds for defunct sessions when slot was ended/split', async () => {
+      const { token } = await createTeacher('teacher.delta3@example.com');
+      // Create slot S1 on Monday (weekday 1) effective 2026-10-01 to 2026-11-30
+      const slotId = '11111111-1111-4111-8111-111111111111';
+      await request(app.getHttpServer())
+        .post('/timetable-slots')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: slotId,
+          weekday: 1,
+          startTime: '07:30',
+          endTime: '08:15',
+          subject: 'Sinh học',
+          tone: 'blue',
+          effectiveFrom: '2026-10-01',
+          effectiveTo: '2026-11-30',
+        })
+        .expect(201);
+
+      // Checkpoint
+      const syncRes = await request(app.getHttpServer())
+        .get('/class-sessions?from=2026-10-26&to=2026-11-08')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      const checkpoint = syncRes.body.serverTime;
+      await new Promise((r) => setTimeout(r, 100));
+
+      // Split slot: update to Friday
+      await request(app.getHttpServer())
+        .patch(`/timetable-slots/${slotId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          weekday: 5,
+        })
+        .expect(200);
+
+      // Query delta sync across 2 weeks
+      const deltaRes = await request(app.getHttpServer())
+        .get(`/class-sessions?from=2026-10-26&to=2026-11-08&updatedSince=${encodeURIComponent(checkpoint)}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(deltaRes.body.items.length).toBeGreaterThanOrEqual(1);
+
+      // Defunct session: Monday session in week 2 from previous slot
+      expect(deltaRes.body.deletedIds).toContain(`${slotId}:2026-11-02`);
+    });
+
+    it('returns deletedIds for all sessions of a slot when soft-deleted', async () => {
+      const { token } = await createTeacher('teacher.delta4@example.com');
+      // Create future slot (effectiveFrom in future so DELETE performs soft-delete)
+      const futureFrom = '2026-11-01';
+      const futureTo = '2026-11-30';
+      const slotId = '11111111-1111-4111-8111-111111111111';
+      await request(app.getHttpServer())
+        .post('/timetable-slots')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: slotId,
+          weekday: 1, // Monday
+          startTime: '07:30',
+          endTime: '08:15',
+          subject: 'Toán học tương lai',
+          tone: 'mint',
+          effectiveFrom: futureFrom,
+          effectiveTo: futureTo,
+        })
+        .expect(201);
+
+      const syncRes = await request(app.getHttpServer())
+        .get('/class-sessions?from=2026-11-01&to=2026-11-15')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      const checkpoint = syncRes.body.serverTime;
+      await new Promise((r) => setTimeout(r, 100));
+
+      // Delete the slot (soft delete because no past sessions)
+      await request(app.getHttpServer())
+        .delete(`/timetable-slots/${slotId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(204);
+
+      // Query delta sync
+      const deltaRes = await request(app.getHttpServer())
+        .get(`/class-sessions?from=2026-11-01&to=2026-11-15&updatedSince=${encodeURIComponent(checkpoint)}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(deltaRes.body.items).toHaveLength(0);
+      // Mondays in 2026-11-01 to 2026-11-15: 2026-11-02 and 2026-11-09
+      expect(deltaRes.body.deletedIds).toEqual([
+        `${slotId}:2026-11-02`,
+        `${slotId}:2026-11-09`,
+      ].sort());
     });
   });
 });
