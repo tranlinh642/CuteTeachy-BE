@@ -4,7 +4,7 @@
 
 **Blocked by:** auth-profile BE-04
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 **Đọc:** SPEC-005 mục *Thiết bị nhận push*, *API*, *Module BE*; `docs/setup/external-services.md` §4 (VAPID); ADR BE 0005 (phải `await` gửi xong).
 
