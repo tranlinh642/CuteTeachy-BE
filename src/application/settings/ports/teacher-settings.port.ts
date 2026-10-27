@@ -4,4 +4,5 @@ export const TEACHER_SETTINGS_READER = Symbol('TEACHER_SETTINGS_READER');
 
 export interface TeacherSettingsReader {
   getSettings(accountId: string): Promise<Settings | null>;
+  findPushEnabledTeachers?(): Promise<Settings[]>;
 }

@@ -26,6 +26,23 @@ export class InMemorySettingsRepository implements SettingsRepository, TeacherSe
     return this.findByAccountId(accountId);
   }
 
+  async findPushEnabledTeachers(): Promise<Settings[]> {
+    return Array.from(this.store.values())
+      .filter((s) => s.pushEnabled)
+      .map((existing) =>
+        Settings.reconstitute({
+          id: existing.id,
+          accountId: existing.accountId,
+          locale: existing.locale,
+          timeZone: existing.timeZone,
+          pushEnabled: existing.pushEnabled,
+          reminderLeadMinutes: existing.reminderLeadMinutes,
+          createdAt: existing.createdAt,
+          updatedAt: existing.updatedAt,
+        }),
+      );
+  }
+
   async save(settings: Settings): Promise<void> {
     const clone = Settings.reconstitute({
       id: settings.id,

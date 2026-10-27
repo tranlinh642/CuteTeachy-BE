@@ -72,3 +72,12 @@ export function calculateTaskRemindAt(
   const taskStartUtc = parseZonedTimeToUtc(dateStr, timeStr, timeZone);
   return new Date(taskStartUtc.getTime() - leadMinutes * 60 * 1000);
 }
+
+export function calculateClassSessionRemindAt(
+  dateStr: string,
+  startTimeStr: string,
+  timeZone: string,
+  leadMinutes: number,
+): Date {
+  return calculateTaskRemindAt(dateStr, startTimeStr, timeZone, leadMinutes);
+}
