@@ -1,0 +1,370 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Gender {
+  female
+  male
+  other
+}
+
+enum TagTone {
+  pink
+  blue
+  beige
+  lavender
+  rose
+  mint
+}
+
+enum Tone {
+  pink
+  blue
+  beige
+  lavender
+  rose
+  mint
+}
+
+enum TaskCategory {
+  school
+  personal
+}
+
+enum TaskPriority {
+  normal
+  high
+}
+
+model Account {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  emailVerifiedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  loginProviders    LoginProvider[]
+  profile           Profile?
+  refreshTokens     RefreshToken[]
+  exchangeCodes     OneTimeExchangeCode[]
+  verificationCodes VerificationCode[]
+  tags              Tag[]
+  tasks             Task[]
+  settings          Settings?
+  notes             Note[]
+  timetableSlots    TimetableSlot[]
+  classSessions     ClassSession[]
+  pushSubscriptions PushSubscription[]
+  sentReminders     SentReminder[]
+
+  @@map("accounts")
+}
+
+model LoginProvider {
+  id           String   @id @default(uuid())
+  accountId    String
+  provider     String   // "password" | "google"
+  passwordHash String?
+  subject      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, provider])
+  @@index([provider, subject])
+  @@map("login_providers")
+}
+
+model Profile {
+  id                    String    @id @default(uuid())
+  accountId             String    @unique
+  fullName              String    @default("")
+  displayName           String    @default("")
+  title                 String?
+  gender                Gender?
+  avatarUrl             String?
+  avatarKey             String?
+  onboardingCompletedAt DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  account               Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  accountId String
+  tokenHash String    @unique
+  familyId  String
+  revokedAt DateTime?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+model OneTimeExchangeCode {
+  id        String    @id @default(uuid())
+  accountId String
+  codeHash  String    @unique
+  remember  Boolean   @default(false)
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@map("one_time_exchange_codes")
+}
+
+model VerificationCode {
+  id          String    @id @default(uuid())
+  email       String
+  accountId   String?
+  purpose     String    // "email_verification" | "password_reset"
+  codeHash    String
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  usedAt      DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  account     Account?  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([email, purpose])
+  @@map("verification_codes")
+}
+
+model RateLimitCounter {
+  key       String   @id
+  count     Int      @default(1)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
+  @@map("rate_limit_counters")
+}
+
+model Tag {
+  id        String    @id
+  name      String
+  tone      TagTone
+  accountId String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  taskTags  TaskTag[]
+  noteTags  NoteTag[]
+
+  @@index([accountId])
+  @@index([accountId, deletedAt])
+  @@index([accountId, updatedAt])
+  @@index([deletedAt])
+  @@map("tags")
+}
+
+model Task {
+  id        String       @id
+  accountId String
+  title     String
+  notes     String?
+  date      String
+  time      String?
+  category  TaskCategory
+  priority  TaskPriority @default(normal)
+  completed Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  deletedAt DateTime?
+
+  account   Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  tags      TaskTag[]
+
+  @@index([accountId])
+  @@index([accountId, date])
+  @@index([accountId, deletedAt])
+  @@index([accountId, updatedAt])
+  @@index([deletedAt])
+  @@map("tasks")
+}
+
+model TaskTag {
+  taskId String
+  tagId  String
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+  @@index([tagId])
+  @@map("task_tags")
+}
+
+model Settings {
+  id                  String   @id @default(uuid())
+  accountId           String   @unique
+  locale              String   @default("vi")
+  timeZone            String   @default("Asia/Ho_Chi_Minh")
+  pushEnabled         Boolean  @default(true)
+  reminderLeadMinutes Int      @default(15)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  account             Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("settings")
+}
+
+model Note {
+  id            String    @id
+  accountId     String
+  title         String
+  content       String?
+  checklist     Json      @default("[]")
+  imageUrl      String?
+  dueDate       String?
+  completed     Boolean   @default(false)
+  searchContent String    @default("")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  account       Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  tags          NoteTag[]
+
+  @@index([accountId])
+  @@index([accountId, deletedAt])
+  @@index([accountId, updatedAt])
+  @@index([deletedAt])
+  @@map("notes")
+}
+
+model NoteTag {
+  noteId String
+  tagId  String
+
+  note   Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, tagId])
+  @@index([tagId])
+  @@map("note_tags")
+}
+
+model Inspiration {
+  id        String   @id
+  quoteVi   String
+  quoteEn   String
+  author    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("inspirations")
+}
+
+model TimetableSlot {
+  id            String    @id
+  accountId     String
+  weekday       Int
+  startTime     String
+  endTime       String
+  subject       String
+  grade         String?
+  room          String?
+  tone          Tone
+  effectiveFrom String
+  effectiveTo   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  account       Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  classSessions ClassSession[]
+
+  @@index([accountId])
+  @@index([accountId, deletedAt])
+  @@index([accountId, updatedAt])
+  @@index([deletedAt])
+  @@map("timetable_slots")
+}
+
+model ClassSession {
+  id              String    @id
+  accountId       String
+  timetableSlotId String?
+  date            String
+  startTime       String?
+  endTime         String?
+  subject         String?
+  grade           String?
+  room            String?
+  tone            Tone?
+  topic           String?
+  prepItems       Json      @default("[]")
+  cancelled       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  account         Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  timetableSlot   TimetableSlot? @relation(fields: [timetableSlotId], references: [id], onDelete: Cascade)
+
+  @@unique([timetableSlotId, date])
+  @@index([accountId])
+  @@index([accountId, date])
+  @@index([accountId, deletedAt])
+  @@index([accountId, updatedAt])
+  @@index([deletedAt])
+  @@map("class_sessions")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  accountId String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@map("push_subscriptions")
+}
+
+model SentReminder {
+  id        String   @id @default(uuid())
+  type      String   // 'task' | 'class_session'
+  targetId  String
+  remindAt  DateTime
+  sentAt    DateTime @default(now())
+  accountId String
+
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([type, targetId, remindAt])
+  @@index([accountId])
+  @@index([sentAt])
+  @@index([remindAt])
+  @@map("sent_reminders")
+}

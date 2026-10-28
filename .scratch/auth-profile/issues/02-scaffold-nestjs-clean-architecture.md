@@ -4,7 +4,7 @@
 
 **Blocked by:** BE-01
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 **Đọc:** `AGENTS.md`, `docs/architecture/layers.md`, `dependency-injection.md`, `testing.md`; SPEC-002 mục *API Contract* (dạng lỗi).
 

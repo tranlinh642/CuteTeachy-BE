@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Đọc:** SPEC-002 mục *Hạ tầng dev* (`../CuteTeachy-FE/docs/specs/SPEC-002-auth-google-onboarding-avatar.md`).
 
