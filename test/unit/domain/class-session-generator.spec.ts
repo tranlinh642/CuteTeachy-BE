@@ -1,5 +1,10 @@
 import { TimetableSlot } from '../../../src/domain/timetable/timetable-slot.entity';
-import { generateClassSessions } from '../../../src/domain/class-session/class-session-generator';
+import { ClassSession } from '../../../src/domain/class-session/class-session.entity';
+import {
+  generateClassSessions,
+  partitionClassSessions,
+  resolveEffectiveClassSessions,
+} from '../../../src/domain/class-session/class-session-generator';
 
 describe('ClassSession Generator Domain Logic', () => {
   const now = new Date('2026-10-20T08:00:00.000Z');
@@ -179,5 +184,61 @@ describe('ClassSession Generator Domain Logic', () => {
 
     const sessions = generateClassSessions([deletedSlot], '2026-10-26', '2026-10-26');
     expect(sessions).toHaveLength(0);
+  });
+
+  it('partitionClassSessions separates overrides Map and activeAdHocs excluding soft-deleted ad-hocs', () => {
+    const override = ClassSession.createOverride({
+      accountId: 'acc-1',
+      timetableSlotId: slot1.id,
+      date: '2026-10-26',
+      topic: 'Ôn tập chương 1',
+      cancelled: false,
+      now,
+    });
+    const activeAdHoc = ClassSession.createAdHoc({
+      id: '77777777-7777-4777-8777-777777777777',
+      accountId: 'acc-1',
+      date: '2026-10-26',
+      startTime: '15:00',
+      endTime: '16:30',
+      subject: 'Bồi dưỡng HSG',
+      tone: 'lavender',
+      category: 'extra_teaching',
+      now,
+    });
+    const deletedAdHoc = ClassSession.createAdHoc({
+      id: '88888888-8888-4888-8888-888888888888',
+      accountId: 'acc-1',
+      date: '2026-10-26',
+      startTime: '17:00',
+      endTime: '18:30',
+      subject: 'Đã xoá',
+      tone: 'mint',
+      now,
+    });
+    deletedAdHoc.delete(now);
+
+    const partitioned = partitionClassSessions([override, activeAdHoc, deletedAdHoc]);
+    expect(partitioned.overrides.size).toBe(1);
+    expect(partitioned.overrides.get(`${slot1.id}:2026-10-26`)).toBe(override);
+    expect(partitioned.activeAdHocs).toEqual([activeAdHoc]);
+
+    const effective = resolveEffectiveClassSessions(
+      [slot1],
+      [override, activeAdHoc, deletedAdHoc],
+      '2026-10-26',
+      '2026-10-26',
+    );
+    expect(effective).toHaveLength(2);
+    expect(effective[0]).toMatchObject({
+      id: `${slot1.id}:2026-10-26`,
+      topic: 'Ôn tập chương 1',
+      isAdHoc: false,
+    });
+    expect(effective[1]).toMatchObject({
+      id: activeAdHoc.id,
+      subject: 'Bồi dưỡng HSG',
+      isAdHoc: true,
+    });
   });
 });

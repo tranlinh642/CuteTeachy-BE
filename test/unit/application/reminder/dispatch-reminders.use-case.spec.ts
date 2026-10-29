@@ -432,11 +432,13 @@ describe('DispatchRemindersUseCase', () => {
           title: 'Nhắc nhở công việc: Họp tổ bộ môn',
           body: '10:00',
           url: '/tasks?date=2026-10-27',
+          tag: `task-task-1-${exactRemindTime.getTime()}`,
           data: {
             type: 'task',
             id: 'task-1',
             date: '2026-10-27',
             url: '/tasks?date=2026-10-27',
+            remindAt: exactRemindTime.toISOString(),
           },
         });
       });
@@ -463,11 +465,13 @@ describe('DispatchRemindersUseCase', () => {
           title: 'Task reminder: Department meeting',
           body: '10:00',
           url: '/tasks?date=2026-10-27',
+          tag: `task-task-1-${exactRemindTime.getTime()}`,
           data: {
             type: 'task',
             id: 'task-1',
             date: '2026-10-27',
             url: '/tasks?date=2026-10-27',
+            remindAt: exactRemindTime.toISOString(),
           },
         });
       });
@@ -488,11 +492,13 @@ describe('DispatchRemindersUseCase', () => {
         title: 'Tiết dạy: Sinh học 10A',
         body: 'Bắt đầu lúc 10:00 tại Phòng 302',
         url: '/timetable?date=2026-10-27',
+        tag: `class_session-00000000-0000-4000-8000-000000000001:2026-10-27-${exactRemindTime.getTime()}`,
         data: {
           type: 'class_session',
           id: '00000000-0000-4000-8000-000000000001:2026-10-27',
           date: '2026-10-27',
           url: '/timetable?date=2026-10-27',
+          remindAt: exactRemindTime.toISOString(),
         },
       });
 
@@ -516,11 +522,13 @@ describe('DispatchRemindersUseCase', () => {
         title: 'Tiết dạy: Dạy bù Vật lý 11B',
         body: 'Bắt đầu lúc 10:00 tại Phòng 101',
         url: '/timetable?date=2026-10-27',
+        tag: `class_session-00000000-0000-4000-8000-000000000002-${exactRemindTime.getTime()}`,
         data: {
           type: 'class_session',
           id: '00000000-0000-4000-8000-000000000002',
           date: '2026-10-27',
           url: '/timetable?date=2026-10-27',
+          remindAt: exactRemindTime.toISOString(),
         },
       });
 
@@ -720,11 +728,13 @@ describe('DispatchRemindersUseCase', () => {
         title: 'Class session: Biology 10A',
         body: 'Starts at 10:00 in Room 302',
         url: '/timetable?date=2026-10-27',
+        tag: `class_session-00000000-0000-4000-8000-000000000001:2026-10-27-${exactRemindTime.getTime()}`,
         data: {
           type: 'class_session',
           id: '00000000-0000-4000-8000-000000000001:2026-10-27',
           date: '2026-10-27',
           url: '/timetable?date=2026-10-27',
+          remindAt: exactRemindTime.toISOString(),
         },
       });
     });
@@ -939,11 +949,13 @@ describe('DispatchRemindersUseCase', () => {
         title: 'Nhắc nhở ghi chú: Nộp bảng điểm giữa kỳ',
         body: '10:00',
         url: '/notes?noteId=11111111-1111-4111-8111-111111111111',
+        tag: `note-11111111-1111-4111-8111-111111111111-${exactRemindTime.getTime()}`,
         data: {
           type: 'note',
           id: '11111111-1111-4111-8111-111111111111',
           date: '2026-10-27',
           url: '/notes?noteId=11111111-1111-4111-8111-111111111111',
+          remindAt: exactRemindTime.toISOString(),
         },
       });
 

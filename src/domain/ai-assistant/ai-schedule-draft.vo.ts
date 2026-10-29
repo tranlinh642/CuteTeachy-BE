@@ -108,3 +108,8 @@ export function validateAiScheduleDraftItem(item: AiScheduleDraftItem): AiSchedu
     conflict: item.conflict ?? null,
   };
 }
+
+export {
+  computeContextDateWindow,
+  enrichDraftItemsWithConflicts,
+} from './ai-draft-enricher';

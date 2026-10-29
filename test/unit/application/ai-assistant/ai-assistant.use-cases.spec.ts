@@ -327,11 +327,16 @@ describe('AI Assistant Use Cases (Seam 3)', () => {
         message: 'Thêm lịch',
       });
 
+      const findByIdSpy = jest.spyOn(chatRepo, 'findById');
+
       const applied = await applyDraftUseCase.execute({
         accountId: teacherId,
         messageId: assistantMessage.id,
         conflictStrategy: 'skip_conflicts',
       });
+
+      expect(findByIdSpy).toHaveBeenCalledTimes(1);
+      findByIdSpy.mockRestore();
 
       expect(applied.summary).toEqual({
         createdCount: 3,

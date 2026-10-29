@@ -3,6 +3,7 @@ import { TimetableValidationError } from '../../../src/domain/timetable/timetabl
 import {
   planSlotModification,
   planSlotDeletion,
+  resolveConflictingSlotForReplacement,
 } from '../../../src/domain/timetable/timetable-slot-modifier';
 
 describe('Timetable Slot Modifier (Domain)', () => {
@@ -485,6 +486,47 @@ describe('Timetable Slot Modifier (Domain)', () => {
 
       expect(result.type).toBe('noop');
       expect(result.slot.isDeleted()).toBe(true);
+    });
+  });
+
+  describe('resolveConflictingSlotForReplacement', () => {
+    it('ends slot at targetEffectiveFrom - 1 day when oldSlot.effectiveFrom < targetEffectiveFrom', () => {
+      const slot = TimetableSlot.create({
+        id: oldSlotId,
+        accountId,
+        weekday: 2,
+        startTime: '07:00',
+        endTime: '07:45',
+        subject: 'Toán Cũ',
+        tone: 'pink',
+        effectiveFrom: '2026-09-01',
+        now: new Date('2026-09-01T08:00:00.000Z'),
+      });
+
+      const res = resolveConflictingSlotForReplacement(slot, '2026-10-29', now);
+
+      expect(res.action).toBe('ended');
+      expect(slot.effectiveTo).toBe('2026-10-28');
+      expect(slot.isDeleted()).toBe(false);
+    });
+
+    it('marks slot deleted when oldSlot.effectiveFrom >= targetEffectiveFrom', () => {
+      const slot = TimetableSlot.create({
+        id: oldSlotId,
+        accountId,
+        weekday: 2,
+        startTime: '07:00',
+        endTime: '07:45',
+        subject: 'Toán Mới Hôm Nay',
+        tone: 'pink',
+        effectiveFrom: '2026-10-29',
+        now,
+      });
+
+      const res = resolveConflictingSlotForReplacement(slot, '2026-10-29', now);
+
+      expect(res.action).toBe('deleted');
+      expect(slot.isDeleted()).toBe(true);
     });
   });
 });
