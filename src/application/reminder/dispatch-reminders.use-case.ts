@@ -28,8 +28,10 @@ import {
   TeacherDateWindow,
   calculateTeacherDateWindow,
 } from '../../domain/settings/teacher-today.helper';
-import { generateClassSessions } from '../../domain/class-session/class-session-generator';
-import { ClassSession } from '../../domain/class-session/class-session.entity';
+import {
+  generateClassSessions,
+  partitionClassSessions,
+} from '../../domain/class-session/class-session-generator';
 import { Settings } from '../../domain/settings/settings.entity';
 import { DispatchRemindersOutput } from './reminder.dto';
 
@@ -46,11 +48,13 @@ interface ProcessReminderParams {
     title: string;
     body: string;
     url: string;
+    tag?: string;
     data: {
       type: ReminderType;
       id: string;
       date: string;
       url: string;
+      remindAt?: string;
       [key: string]: unknown;
     };
   };
@@ -207,12 +211,17 @@ export class DispatchRemindersUseCase {
         continue;
       }
 
-      const payload = formatTaskReminderNotification(settings.locale, {
-        id: task.id,
-        title: task.title,
-        time: task.time,
-        date: task.date,
-      });
+      const payload = formatTaskReminderNotification(
+        settings.locale,
+        {
+          id: task.id,
+          title: task.title,
+          time: task.time,
+          date: task.date,
+          remindAt,
+        },
+        remindAt,
+      );
 
       const sent = await this.processReminderCandidate({
         type: 'task',
@@ -275,12 +284,17 @@ export class DispatchRemindersUseCase {
           continue;
         }
 
-        const payload = formatNoteReminderNotification(settings.locale, {
-          id: note.id,
-          title: note.title,
-          dueDate: noteDate,
-          remindTime: note.remindTime,
-        });
+        const payload = formatNoteReminderNotification(
+          settings.locale,
+          {
+            id: note.id,
+            title: note.title,
+            dueDate: noteDate,
+            remindTime: note.remindTime,
+            remindAt,
+          },
+          remindAt,
+        );
 
         const sent = await this.processReminderCandidate({
           type: 'note',
@@ -327,16 +341,7 @@ export class DispatchRemindersUseCase {
         teacherWindow.tomorrow,
       );
 
-      const overrides = new Map<string, ClassSession>();
-      const activeAdHocs: ClassSession[] = [];
-
-      for (const session of dbSessions) {
-        if (session.isOverride()) {
-          overrides.set(session.id, session);
-        } else if (session.isAdHoc() && !session.isDeleted()) {
-          activeAdHocs.push(session);
-        }
-      }
+      const { overrides, activeAdHocs } = partitionClassSessions(dbSessions);
 
       // 4A. Process generated sessions from timetable slots
       for (const genSession of generatedSessions) {
@@ -376,15 +381,20 @@ export class DispatchRemindersUseCase {
           continue;
         }
 
-        const payload = formatClassSessionReminderNotification(settings.locale, {
-          id: genSession.id,
-          date: genSession.date,
-          startTime: effectiveStartTime,
-          subject: effectiveSubject,
-          grade: effectiveGrade,
-          room: effectiveRoom,
-          category: effectiveCategory,
-        });
+        const payload = formatClassSessionReminderNotification(
+          settings.locale,
+          {
+            id: genSession.id,
+            date: genSession.date,
+            startTime: effectiveStartTime,
+            subject: effectiveSubject,
+            grade: effectiveGrade,
+            room: effectiveRoom,
+            category: effectiveCategory,
+            remindAt,
+          },
+          remindAt,
+        );
 
         const sent = await this.processReminderCandidate({
           type: 'class_session',
@@ -424,15 +434,20 @@ export class DispatchRemindersUseCase {
           continue;
         }
 
-        const payload = formatClassSessionReminderNotification(settings.locale, {
-          id: adHoc.id,
-          date: adHoc.date,
-          startTime: adHoc.startTime,
-          subject: adHoc.subject ?? '',
-          grade: adHoc.grade ?? undefined,
-          room: adHoc.room ?? undefined,
-          category: adHoc.category ?? 'school_teaching',
-        });
+        const payload = formatClassSessionReminderNotification(
+          settings.locale,
+          {
+            id: adHoc.id,
+            date: adHoc.date,
+            startTime: adHoc.startTime,
+            subject: adHoc.subject ?? '',
+            grade: adHoc.grade ?? undefined,
+            room: adHoc.room ?? undefined,
+            category: adHoc.category ?? 'school_teaching',
+            remindAt,
+          },
+          remindAt,
+        );
 
         const sent = await this.processReminderCandidate({
           type: 'class_session',
@@ -474,6 +489,15 @@ export class DispatchRemindersUseCase {
       return false;
     }
 
+    const enrichedPayload = {
+      ...payload,
+      tag: payload.tag ?? `${type}-${targetId}-${remindAt.getTime()}`,
+      data: {
+        ...payload.data,
+        remindAt: payload.data.remindAt ?? remindAt.toISOString(),
+      },
+    };
+
     let inAppCreated = false;
     if (this.inAppNotificationRepo) {
       const notification = InAppNotification.create({
@@ -481,10 +505,10 @@ export class DispatchRemindersUseCase {
         accountId,
         type,
         targetId,
-        title: payload.title,
-        body: payload.body,
-        url: payload.url,
-        data: payload.data,
+        title: enrichedPayload.title,
+        body: enrichedPayload.body,
+        url: enrichedPayload.url,
+        data: enrichedPayload.data,
         now,
       });
       await this.inAppNotificationRepo.save(notification);
@@ -495,7 +519,7 @@ export class DispatchRemindersUseCase {
     if (pushEnabled) {
       const pushResult = await this.sendPushUseCase.execute({
         accountId,
-        payload,
+        payload: enrichedPayload,
       });
       pushSent = pushResult.sent;
     }

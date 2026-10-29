@@ -13,7 +13,7 @@ import {
 import { ClassSession } from '../../domain/class-session/class-session.entity';
 import { calculateTeacherToday } from '../../domain/settings/teacher-today.helper';
 import { Task } from '../../domain/task/task.entity';
-import { addDaysToDateString } from '../../domain/timetable/timetable-date.helper';
+import { resolveConflictingSlotForReplacement } from '../../domain/timetable/timetable-slot-modifier';
 import { TimetableSlot } from '../../domain/timetable/timetable-slot.entity';
 import type { TeacherSettingsReader } from '../settings/ports/teacher-settings.port';
 import type { Clock } from '../shared/ports/clock.port';
@@ -45,23 +45,6 @@ export class ApplyAiScheduleDraftUseCase {
       );
     }
 
-    const existingMsg = await this.chatMessageRepo.findById(input.messageId);
-    if (!existingMsg || existingMsg.accountId !== input.accountId) {
-      throw new AiMessageNotFoundError();
-    }
-
-    if (!existingMsg.draft) {
-      throw new AiAssistantValidationError('Message does not contain a schedule draft');
-    }
-
-    if (existingMsg.draft.status === 'applied') {
-      throw new AiDraftAlreadyAppliedError();
-    }
-
-    const itemsToApply = (input.items ?? existingMsg.draft.items).map(
-      validateAiScheduleDraftItem,
-    );
-
     const settings = await this.settingsReader.getSettings(input.accountId);
     const timeZone = settings?.timeZone ?? 'Asia/Ho_Chi_Minh';
     const now = this.clock.now();
@@ -79,6 +62,10 @@ export class ApplyAiScheduleDraftUseCase {
       if (message.draft.status === 'applied') {
         throw new AiDraftAlreadyAppliedError();
       }
+
+      const itemsToApply = (input.items ?? message.draft.items).map(
+        validateAiScheduleDraftItem,
+      );
 
       let activeSlots = await repos.timetableSlotRepo.findActiveByAccount(input.accountId);
       let createdCount = 0;
@@ -121,12 +108,7 @@ export class ApplyAiScheduleDraftUseCase {
 
             // replace_conflicts
             for (const oldSlot of conflictingSlots) {
-              if (oldSlot.effectiveFrom < targetEffectiveFrom) {
-                const newEffectiveTo = addDaysToDateString(targetEffectiveFrom, -1);
-                oldSlot.endAt(newEffectiveTo, now);
-              } else {
-                oldSlot.markDeleted(now);
-              }
+              resolveConflictingSlotForReplacement(oldSlot, targetEffectiveFrom, now);
               await repos.timetableSlotRepo.save(oldSlot);
               await repos.classSessionRepo.deleteOverridesBySlotFromDate(
                 oldSlot.id,

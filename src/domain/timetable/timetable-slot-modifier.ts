@@ -2,6 +2,7 @@ import { TimetableSlot } from './timetable-slot.entity';
 import { Tone } from './tone.vo';
 import { ScheduleCategory } from './schedule-category.vo';
 import { TimetableValidationError } from './timetable.errors';
+import { addDaysToDateString } from './timetable-date.helper';
 
 export interface ModifySlotInput {
   slot: TimetableSlot;
@@ -145,4 +146,24 @@ export function planSlotDeletion(
 
   slot.delete(now);
   return { type: 'deleted', slot };
+}
+
+export interface SlotReplacementResolutionResult {
+  action: 'ended' | 'deleted';
+  slot: TimetableSlot;
+}
+
+export function resolveConflictingSlotForReplacement(
+  oldSlot: TimetableSlot,
+  targetEffectiveFrom: string,
+  now: Date,
+): SlotReplacementResolutionResult {
+  if (oldSlot.effectiveFrom < targetEffectiveFrom) {
+    const dayBefore = addDaysToDateString(targetEffectiveFrom, -1);
+    oldSlot.endAt(dayBefore, now);
+    return { action: 'ended', slot: oldSlot };
+  }
+
+  oldSlot.markDeleted(now);
+  return { action: 'deleted', slot: oldSlot };
 }

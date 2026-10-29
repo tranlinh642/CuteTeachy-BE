@@ -557,11 +557,13 @@ describe('POST /internal/reminders/dispatch (e2e)', () => {
         title: 'Nhắc nhở ghi chú: Nộp điểm E2E',
         body: '10:00',
         url: `/notes?noteId=${timedNoteId}`,
+        tag: `note-${timedNoteId}-${fixedNow.getTime()}`,
         data: {
           type: 'note',
           id: timedNoteId,
           date: '2026-10-27',
           url: `/notes?noteId=${timedNoteId}`,
+          remindAt: fixedNow.toISOString(),
         },
       });
 

@@ -271,5 +271,50 @@ describe('Reminder Template', () => {
         },
       });
     });
+
+    it('includes tag "${type}-${targetId}-${remindAtMs}" and data.remindAt ISO string when remindAt is provided across task, class_session, and note', () => {
+      const remindAt = new Date('2026-10-27T02:45:00.000Z');
+      const remindAtMs = remindAt.getTime();
+      const remindAtIso = remindAt.toISOString();
+
+      const taskPayload = formatTaskReminderNotification(
+        'vi',
+        {
+          id: 'task-abc',
+          title: 'Soạn giáo án',
+          time: '10:00',
+          date: '2026-10-27',
+        },
+        remindAt,
+      );
+      expect(taskPayload.tag).toBe(`task-task-abc-${remindAtMs}`);
+      expect(taskPayload.data.remindAt).toBe(remindAtIso);
+
+      const sessionPayload = formatClassSessionReminderNotification(
+        'vi',
+        {
+          id: 'slot-1:2026-10-27',
+          date: '2026-10-27',
+          startTime: '10:00',
+          subject: 'Toán',
+        },
+        remindAt,
+      );
+      expect(sessionPayload.tag).toBe(`class_session-slot-1:2026-10-27-${remindAtMs}`);
+      expect(sessionPayload.data.remindAt).toBe(remindAtIso);
+
+      const notePayload = formatNoteReminderNotification(
+        'vi',
+        {
+          id: 'note-123',
+          title: 'Ghi chú',
+          dueDate: '2026-10-27',
+          remindTime: '10:00',
+        },
+        remindAt,
+      );
+      expect(notePayload.tag).toBe(`note-note-123-${remindAtMs}`);
+      expect(notePayload.data.remindAt).toBe(remindAtIso);
+    });
   });
 });
