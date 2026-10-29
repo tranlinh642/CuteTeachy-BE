@@ -62,6 +62,7 @@ model Account {
   classSessions     ClassSession[]
   pushSubscriptions PushSubscription[]
   sentReminders     SentReminder[]
+  inAppNotifications InAppNotification[]
 
   @@map("accounts")
 }
@@ -355,7 +356,7 @@ model PushSubscription {
 
 model SentReminder {
   id        String   @id @default(uuid())
-  type      String   // 'task' | 'class_session'
+  type      String   // 'task' | 'class_session' | 'note'
   targetId  String
   remindAt  DateTime
   sentAt    DateTime @default(now())
@@ -369,3 +370,23 @@ model SentReminder {
   @@index([remindAt])
   @@map("sent_reminders")
 }
+
+model InAppNotification {
+  id        String    @id @default(uuid())
+  accountId String
+  type      String    // 'task' | 'class_session' | 'note' | 'system'
+  targetId  String?
+  title     String
+  body      String
+  url       String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
+  @@index([accountId, readAt])
+  @@map("in_app_notifications")
+}
+

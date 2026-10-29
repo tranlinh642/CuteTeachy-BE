@@ -24,11 +24,6 @@ export class PrismaNoteReminderReader implements NoteReminderReader {
           gte: effectiveFrom,
           lte: `${effectiveTo}T23:59:59.999Z`,
         },
-        account: {
-          settings: {
-            pushEnabled: true,
-          },
-        },
       },
       orderBy: [{ dueDate: 'asc' }, { remindTime: 'asc' }],
       include: {

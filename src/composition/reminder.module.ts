@@ -7,8 +7,13 @@ import { TagModule } from './tag.module';
 import { TaskModule } from './task.module';
 import { TimetableModule } from './timetable.module';
 import { ClassSessionModule } from './class-session.module';
+import { NotificationModule } from './notification.module';
 import { CLOCK, Clock } from '../application/shared/ports/clock.port';
 import { ID_GENERATOR, IdGenerator } from '../application/shared/ports/id-generator.port';
+import {
+  IN_APP_NOTIFICATION_REPOSITORY,
+  InAppNotificationRepository,
+} from '../application/notification/ports/in-app-notification.repository.port';
 import {
   TEACHER_SETTINGS_READER,
   TeacherSettingsReader,
@@ -58,6 +63,7 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
     TaskModule,
     TimetableModule,
     ClassSessionModule,
+    NotificationModule,
   ],
   controllers: [ReminderController],
   providers: [
@@ -107,6 +113,7 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
         purgeTagsUseCase: PurgeSoftDeletedTagsUseCase,
         purgeTasksUseCase: PurgeSoftDeletedTasksUseCase,
         noteReader: NoteReminderReader,
+        inAppNotificationRepo: InAppNotificationRepository,
       ) =>
         new DispatchRemindersUseCase(
           taskReader,
@@ -120,6 +127,7 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
           purgeTagsUseCase,
           purgeTasksUseCase,
           noteReader,
+          inAppNotificationRepo,
         ),
       inject: [
         TASK_REMINDER_READER,
@@ -133,6 +141,7 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
         PurgeSoftDeletedTagsUseCase,
         PurgeSoftDeletedTasksUseCase,
         NOTE_REMINDER_READER,
+        IN_APP_NOTIFICATION_REPOSITORY,
       ],
     },
   ],

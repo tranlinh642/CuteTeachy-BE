@@ -46,6 +46,7 @@ describe('POST /internal/reminders/dispatch (e2e)', () => {
     fakePushSender.clear();
     clock.set(fixedNow);
 
+    await prisma.inAppNotification.deleteMany();
     await prisma.sentReminder.deleteMany();
     await prisma.pushSubscription.deleteMany();
     await prisma.noteTag.deleteMany();
@@ -602,6 +603,45 @@ describe('POST /internal/reminders/dispatch (e2e)', () => {
         skipped: 0,
       });
       expect(fakePushSender.getSentMessages()).toHaveLength(3);
+    });
+
+    it('creates InAppNotification on dispatch even when teacher has no PushSubscription (S6-BE-02)', async () => {
+      const { token } = await createTeacher('teacher-no-push-sub@example.com');
+
+      clock.set(fixedNow);
+
+      await request(app.getHttpServer())
+        .post('/notes')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: 'aaaaaaaa-aaaa-4111-8111-aaaaaaaaaaaa',
+          title: 'Ghi chú chỉ nhận In-App',
+          dueDate: '2026-10-27',
+          remindTime: '10:00',
+        })
+        .expect(201);
+
+      const dispatchRes = await request(app.getHttpServer())
+        .post('/internal/reminders/dispatch')
+        .set('X-Cron-Secret', validCronSecret)
+        .expect(200);
+
+      expect(dispatchRes.body).toEqual({
+        sent: 1,
+        skipped: 0,
+      });
+      expect(fakePushSender.getSentMessages()).toHaveLength(0);
+
+      const notifRes = await request(app.getHttpServer())
+        .get('/notifications')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(notifRes.body.unreadCount).toBe(1);
+      expect(notifRes.body.items).toHaveLength(1);
+      expect(notifRes.body.items[0].type).toBe('note');
+      expect(notifRes.body.items[0].targetId).toBe('aaaaaaaa-aaaa-4111-8111-aaaaaaaaaaaa');
+      expect(notifRes.body.items[0].url).toBe('/notes?noteId=aaaaaaaa-aaaa-4111-8111-aaaaaaaaaaaa');
     });
   });
 });

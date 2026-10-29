@@ -37,3 +37,9 @@ export class DeletePushSubscriptionQueryDto {
 export class VapidPublicKeyResponseDto {
   publicKey!: string;
 }
+
+export class TestPushNotificationResponseDto {
+  sent!: number;
+  failed!: number;
+  inAppCreated!: boolean;
+}

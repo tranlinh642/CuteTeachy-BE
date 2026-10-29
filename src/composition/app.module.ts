@@ -15,6 +15,7 @@ import { InspirationModule } from './inspiration.module';
 import { TimetableModule } from './timetable.module';
 import { ClassSessionModule } from './class-session.module';
 import { PushSubscriptionModule } from './push-subscription.module';
+import { NotificationModule } from './notification.module';
 import { ReminderModule } from './reminder.module';
 
 @Module({
@@ -35,6 +36,7 @@ import { ReminderModule } from './reminder.module';
     TimetableModule,
     ClassSessionModule,
     PushSubscriptionModule,
+    NotificationModule,
     ReminderModule,
   ],
 })
