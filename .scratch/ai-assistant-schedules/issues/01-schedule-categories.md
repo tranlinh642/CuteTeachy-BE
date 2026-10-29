@@ -4,7 +4,7 @@
 
 **Blocked by:** S6-BE-01 (Note `remindTime` & Sửa lỗi biên nửa đêm)
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 - [ ] Thêm enum `ScheduleCategory` (`school_teaching`, `extra_teaching`, `self_study`) vào Prisma schema, entity `TimetableSlot` và `ClassSession` (mặc định `'school_teaching'`).
 - [ ] Kế thừa `category` khi sinh `ClassSession` từ `TimetableSlot` và hỗ trợ `category` trên buổi lẻ (`ad-hoc`) cũng như bản ghi đè.
