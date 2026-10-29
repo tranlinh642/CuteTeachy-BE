@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (S7-BE-01 — Phân loại 3 Loại lịch `ScheduleCategory`)
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 - [ ] Tạo bảng `ai_chat_messages` và module `ai-assistant` 4 layer với port `AiAssistantPort` và adapter `GeminiAiAssistantAdapter` (dùng `GEMINI_API_KEY`, `GEMINI_MODEL`, không thêm fallback giả lập làm nặng hệ thống).
 - [ ] `POST /ai-assistant/messages` hỗ trợ cả văn bản và ảnh đính kèm (`JPEG/PNG/WebP` ≤ 5MB), lưu ảnh qua `ObjectStorage` với `imageExpiresAt = now + 45 ngày`, đính kèm ngữ cảnh 4 miền (`TimetableSlot`, `ClassSession`, `Task`, `Note`) + bảng quy đổi Tiết 1..10, và gắn cảnh báo `conflict` nếu mục nháp trùng giờ với `TimetableSlot` hiện có.
