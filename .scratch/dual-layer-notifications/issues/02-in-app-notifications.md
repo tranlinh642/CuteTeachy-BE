@@ -4,10 +4,10 @@
 
 **Blocked by:** 01 (S6-BE-01 — Mở rộng Note `remindTime` & Sửa lỗi biên nửa đêm)
 
-**Status:** in-progress
+**Status:** done
 
-- [ ] Tạo bảng `in_app_notifications` và module `notification` theo đúng Clean Architecture 4 layer.
-- [ ] Trong `DispatchRemindersUseCase`, mỗi khi có mục đến hạn chưa gửi trong cửa sổ 10 phút: luôn tạo bản ghi `InAppNotification` và lưu `SentReminder` idempotent; nếu `pushEnabled = true` thì gửi thêm Web Push; tự động dọn `InAppNotification` quá 30 ngày.
-- [ ] Cung cấp `GET /notifications` (trả `{ items, unreadCount }`), `PATCH /notifications/:id/read`, và `POST /notifications/read-all`.
-- [ ] Cung cấp `POST /push/subscriptions/test` tạo 1 thông báo thử In-App + gửi Web Push tới các thiết bị của giáo viên hiện tại.
-- [ ] Unit test và E2E test đầy đủ (bao gồm kiểm tra cô lập tài khoản `404`); `pnpm check-types`, `pnpm lint`, `pnpm test`, `pnpm test:e2e` xanh.
+- [x] Tạo bảng `in_app_notifications` và module `notification` theo đúng Clean Architecture 4 layer.
+- [x] Trong `DispatchRemindersUseCase`, mỗi khi có mục đến hạn chưa gửi trong cửa sổ 10 phút: luôn tạo bản ghi `InAppNotification` và lưu `SentReminder` idempotent; nếu `pushEnabled = true` thì gửi thêm Web Push; tự động dọn `InAppNotification` quá 30 ngày.
+- [x] Cung cấp `GET /notifications` (trả `{ items, unreadCount }`), `PATCH /notifications/:id/read`, và `POST /notifications/read-all`.
+- [x] Cung cấp `POST /push/subscriptions/test` tạo 1 thông báo thử In-App + gửi Web Push tới các thiết bị của giáo viên hiện tại.
+- [x] Unit test và E2E test đầy đủ (bao gồm kiểm tra cô lập tài khoản `404`); `pnpm check-types`, `pnpm lint`, `pnpm test`, `pnpm test:e2e` xanh.
