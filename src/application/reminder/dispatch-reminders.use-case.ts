@@ -8,6 +8,7 @@ import { InAppNotificationRepository } from '../notification/ports/in-app-notifi
 import { SendPushToTeacherUseCase } from '../push-subscription/send-push-to-teacher.use-case';
 import { PurgeSoftDeletedTagsUseCase } from '../tag/purge-soft-deleted-tags.use-case';
 import { PurgeSoftDeletedTasksUseCase } from '../task/purge-soft-deleted-tasks.use-case';
+import { PurgeExpiredAiImagesUseCase } from '../ai-assistant/purge-expired-ai-images.use-case';
 import { TimetableSlotRepository } from '../timetable/ports/timetable-slot.repository.port';
 import { ClassSessionRepository } from '../class-session/ports/class-session.repository.port';
 import { SentReminder } from '../../domain/reminder/sent-reminder.entity';
@@ -71,6 +72,7 @@ export class DispatchRemindersUseCase {
     private readonly purgeSoftDeletedTasksUseCase?: PurgeSoftDeletedTasksUseCase,
     private readonly noteReader?: NoteReminderReader,
     private readonly inAppNotificationRepo?: InAppNotificationRepository,
+    private readonly purgeExpiredAiImagesUseCase?: PurgeExpiredAiImagesUseCase,
   ) {}
 
   async execute(): Promise<DispatchRemindersOutput> {
@@ -104,6 +106,14 @@ export class DispatchRemindersUseCase {
     if (this.purgeSoftDeletedTasksUseCase) {
       try {
         await this.purgeSoftDeletedTasksUseCase.execute();
+      } catch {
+        // Non-blocking cleanup
+      }
+    }
+
+    if (this.purgeExpiredAiImagesUseCase) {
+      try {
+        await this.purgeExpiredAiImagesUseCase.execute();
       } catch {
         // Non-blocking cleanup
       }

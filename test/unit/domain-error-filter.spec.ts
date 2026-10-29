@@ -66,6 +66,20 @@ describe('GlobalExceptionFilter', () => {
     });
   });
 
+  it('maps AI assistant domain error codes to 400, 409, and 503', () => {
+    filter.catch(new TestDomainError('validation_error', 'Invalid AI input'), mockHost);
+    expect(mockStatus).toHaveBeenLastCalledWith(HttpStatus.BAD_REQUEST);
+
+    filter.catch(new TestDomainError('ai_draft_already_applied', 'Draft already applied'), mockHost);
+    expect(mockStatus).toHaveBeenLastCalledWith(HttpStatus.CONFLICT);
+
+    filter.catch(new TestDomainError('ai_provider_not_configured', 'Missing GEMINI_API_KEY'), mockHost);
+    expect(mockStatus).toHaveBeenLastCalledWith(HttpStatus.SERVICE_UNAVAILABLE);
+
+    filter.catch(new TestDomainError('ai_provider_error', 'Gemini upstream error'), mockHost);
+    expect(mockStatus).toHaveBeenLastCalledWith(HttpStatus.SERVICE_UNAVAILABLE);
+  });
+
   it('maps validation BadRequestException to 400 with code "validation"', () => {
     const error = new HttpException(
       { code: 'validation', message: 'Name must not be empty' },

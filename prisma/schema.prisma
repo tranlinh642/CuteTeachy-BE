@@ -69,6 +69,7 @@ model Account {
   pushSubscriptions PushSubscription[]
   sentReminders     SentReminder[]
   inAppNotifications InAppNotification[]
+  aiChatMessages    AiChatMessage[]
 
   @@map("accounts")
 }
@@ -397,4 +398,23 @@ model InAppNotification {
   @@index([accountId, readAt])
   @@map("in_app_notifications")
 }
+
+model AiChatMessage {
+  id             String    @id @default(uuid())
+  accountId      String
+  role           String    // 'user' | 'assistant'
+  content        String
+  imageUrl       String?
+  imageKey       String?
+  imageExpiresAt DateTime?
+  draft          Json?
+  createdAt      DateTime  @default(now())
+
+  account        Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
+  @@index([imageExpiresAt])
+  @@map("ai_chat_messages")
+}
+
 

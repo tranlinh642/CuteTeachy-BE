@@ -3,6 +3,7 @@ import type { TaskRepository } from '../../task/ports/task.repository.port';
 import type { NoteRepository } from '../../note/ports/note.repository.port';
 import type { TimetableSlotRepository } from '../../timetable/ports/timetable-slot.repository.port';
 import type { ClassSessionRepository } from '../../class-session/ports/class-session.repository.port';
+import type { AiChatMessageRepository } from '../../ai-assistant/ports/ai-chat-message.repository.port';
 
 export const UNIT_OF_WORK = Symbol('UNIT_OF_WORK');
 
@@ -12,6 +13,7 @@ export interface TransactionalRepositories {
   noteRepo: NoteRepository;
   timetableSlotRepo: TimetableSlotRepository;
   classSessionRepo: ClassSessionRepository;
+  aiChatMessageRepo?: AiChatMessageRepository;
 }
 
 export interface UnitOfWork {

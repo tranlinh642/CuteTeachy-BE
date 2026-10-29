@@ -8,6 +8,7 @@ import { TaskModule } from './task.module';
 import { TimetableModule } from './timetable.module';
 import { ClassSessionModule } from './class-session.module';
 import { NotificationModule } from './notification.module';
+import { AiAssistantModule } from './ai-assistant.module';
 import { CLOCK, Clock } from '../application/shared/ports/clock.port';
 import { ID_GENERATOR, IdGenerator } from '../application/shared/ports/id-generator.port';
 import {
@@ -21,6 +22,7 @@ import {
 import { SendPushToTeacherUseCase } from '../application/push-subscription/send-push-to-teacher.use-case';
 import { PurgeSoftDeletedTagsUseCase } from '../application/tag/purge-soft-deleted-tags.use-case';
 import { PurgeSoftDeletedTasksUseCase } from '../application/task/purge-soft-deleted-tasks.use-case';
+import { PurgeExpiredAiImagesUseCase } from '../application/ai-assistant/purge-expired-ai-images.use-case';
 import {
   SENT_REMINDER_REPOSITORY,
   SentReminderRepository,
@@ -64,6 +66,7 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
     TimetableModule,
     ClassSessionModule,
     NotificationModule,
+    AiAssistantModule,
   ],
   controllers: [ReminderController],
   providers: [
@@ -114,6 +117,7 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
         purgeTasksUseCase: PurgeSoftDeletedTasksUseCase,
         noteReader: NoteReminderReader,
         inAppNotificationRepo: InAppNotificationRepository,
+        purgeAiImagesUseCase: PurgeExpiredAiImagesUseCase,
       ) =>
         new DispatchRemindersUseCase(
           taskReader,
@@ -128,6 +132,7 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
           purgeTasksUseCase,
           noteReader,
           inAppNotificationRepo,
+          purgeAiImagesUseCase,
         ),
       inject: [
         TASK_REMINDER_READER,
@@ -142,6 +147,7 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
         PurgeSoftDeletedTasksUseCase,
         NOTE_REMINDER_READER,
         IN_APP_NOTIFICATION_REPOSITORY,
+        PurgeExpiredAiImagesUseCase,
       ],
     },
   ],
