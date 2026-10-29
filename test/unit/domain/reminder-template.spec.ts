@@ -1,6 +1,7 @@
 import {
   formatTaskReminderNotification,
   formatClassSessionReminderNotification,
+  formatNoteReminderNotification,
 } from '../../../src/domain/reminder/reminder-template';
 
 describe('Reminder Template', () => {
@@ -168,6 +169,52 @@ describe('Reminder Template', () => {
       const payload = formatClassSessionReminderNotification('de', sessionWithAll);
       expect(payload.title).toBe('Tiết dạy: Toán học 10A');
       expect(payload.body).toBe('Bắt đầu lúc 07:30 tại P.302');
+    });
+  });
+
+  describe('Note Reminder Template (S6-BE-01)', () => {
+    const note = {
+      id: 'note-123',
+      title: 'Nộp điểm giữa kỳ I',
+      dueDate: '2026-10-27',
+      remindTime: '14:30',
+    };
+
+    it('formats note notification in Vietnamese (vi) and links to /notes?noteId=<id>', () => {
+      const payload = formatNoteReminderNotification('vi', note);
+
+      expect(payload).toEqual({
+        title: 'Nhắc nhở ghi chú: Nộp điểm giữa kỳ I',
+        body: '14:30',
+        url: '/notes?noteId=note-123',
+        data: {
+          type: 'note',
+          id: 'note-123',
+          date: '2026-10-27',
+          url: '/notes?noteId=note-123',
+        },
+      });
+    });
+
+    it('formats note notification in English (en) and defaults body to 07:00 when remindTime is null', () => {
+      const payload = formatNoteReminderNotification('en', {
+        id: 'note-123',
+        title: 'Submit midterm grades',
+        dueDate: '2026-10-27',
+        remindTime: null,
+      });
+
+      expect(payload).toEqual({
+        title: 'Note reminder: Submit midterm grades',
+        body: '07:00',
+        url: '/notes?noteId=note-123',
+        data: {
+          type: 'note',
+          id: 'note-123',
+          date: '2026-10-27',
+          url: '/notes?noteId=note-123',
+        },
+      });
     });
   });
 });

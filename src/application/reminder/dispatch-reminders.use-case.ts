@@ -3,6 +3,7 @@ import { IdGenerator } from '../shared/ports/id-generator.port';
 import { TeacherSettingsReader } from '../settings/ports/teacher-settings.port';
 import { SentReminderRepository } from './ports/sent-reminder.repository.port';
 import { TaskReminderReader } from './ports/task-reminder.port';
+import { NoteReminderReader } from './ports/note-reminder.port';
 import { SendPushToTeacherUseCase } from '../push-subscription/send-push-to-teacher.use-case';
 import { PurgeSoftDeletedTagsUseCase } from '../tag/purge-soft-deleted-tags.use-case';
 import { PurgeSoftDeletedTasksUseCase } from '../task/purge-soft-deleted-tasks.use-case';
@@ -12,13 +13,18 @@ import { SentReminder } from '../../domain/reminder/sent-reminder.entity';
 import { ReminderType } from '../../domain/reminder/reminder-type.vo';
 import {
   calculateClassSessionRemindAt,
+  calculateNoteRemindAt,
   calculateTaskRemindAt,
 } from '../../domain/reminder/reminder-time.calculator';
 import {
   formatClassSessionReminderNotification,
+  formatNoteReminderNotification,
   formatTaskReminderNotification,
 } from '../../domain/reminder/reminder-template';
-import { calculateTeacherToday } from '../../domain/settings/teacher-today.helper';
+import {
+  TeacherDateWindow,
+  calculateTeacherDateWindow,
+} from '../../domain/settings/teacher-today.helper';
 import { generateClassSessions } from '../../domain/class-session/class-session-generator';
 import { ClassSession } from '../../domain/class-session/class-session.entity';
 import { Settings } from '../../domain/settings/settings.entity';
@@ -60,6 +66,7 @@ export class DispatchRemindersUseCase {
     private readonly sessionRepo: ClassSessionRepository,
     private readonly purgeSoftDeletedTagsUseCase?: PurgeSoftDeletedTagsUseCase,
     private readonly purgeSoftDeletedTasksUseCase?: PurgeSoftDeletedTasksUseCase,
+    private readonly noteReader?: NoteReminderReader,
   ) {}
 
   async execute(): Promise<DispatchRemindersOutput> {
@@ -108,8 +115,32 @@ export class DispatchRemindersUseCase {
       return fetched;
     };
 
-    // 3. Process candidate tasks
-    const tasks = await this.taskReader.findUpcomingTasks();
+    const windowCache = new Map<string, TeacherDateWindow>();
+    const getTeacherWindow = (timeZone: string): TeacherDateWindow => {
+      const cached = windowCache.get(timeZone);
+      if (cached) {
+        return cached;
+      }
+      const computed = calculateTeacherDateWindow(now, timeZone);
+      windowCache.set(timeZone, computed);
+      return computed;
+    };
+
+    // Compute global [fromDate, toDate] bounding window across all teacher timezones
+    let globalFromDate = new Date(now.getTime() - 36 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    let globalToDate = new Date(now.getTime() + 38 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    for (const s of pushTeachers) {
+      try {
+        const win = getTeacherWindow(s.timeZone);
+        if (win.yesterday < globalFromDate) globalFromDate = win.yesterday;
+        if (win.tomorrow > globalToDate) globalToDate = win.tomorrow;
+      } catch {
+        // Ignore invalid timezone here; handled per teacher below
+      }
+    }
+
+    // 3A. Process candidate tasks across [yesterday, today, tomorrow]
+    const tasks = await this.taskReader.findUpcomingTasks(globalFromDate, globalToDate);
 
     for (const task of tasks) {
       // Condition: task has time, not completed, not deleted
@@ -121,6 +152,19 @@ export class DispatchRemindersUseCase {
       // Teacher settings check
       const settings = await getTeacherSettings(task.accountId);
       if (!settings || !settings.pushEnabled) {
+        skippedCount++;
+        continue;
+      }
+
+      let teacherWindow: TeacherDateWindow;
+      try {
+        teacherWindow = getTeacherWindow(settings.timeZone);
+      } catch {
+        skippedCount++;
+        continue;
+      }
+
+      if (task.date < teacherWindow.yesterday || task.date > teacherWindow.tomorrow) {
         skippedCount++;
         continue;
       }
@@ -163,26 +207,98 @@ export class DispatchRemindersUseCase {
       }
     }
 
-    // 4. Candidate Class Sessions (SPEC-004 + SPEC-005)
+    // 3B. Process candidate notes across [yesterday, today, tomorrow] (SPEC-006)
+    if (this.noteReader) {
+      const notes = await this.noteReader.findUpcomingNotes(globalFromDate, globalToDate);
+
+      for (const note of notes) {
+        if (!note.dueDate || note.completed || note.deletedAt !== null) {
+          skippedCount++;
+          continue;
+        }
+
+        const settings = await getTeacherSettings(note.accountId);
+        if (!settings || !settings.pushEnabled) {
+          skippedCount++;
+          continue;
+        }
+
+        let teacherWindow: TeacherDateWindow;
+        try {
+          teacherWindow = getTeacherWindow(settings.timeZone);
+        } catch {
+          skippedCount++;
+          continue;
+        }
+
+        const noteDate = note.dueDate.slice(0, 10);
+        if (noteDate < teacherWindow.yesterday || noteDate > teacherWindow.tomorrow) {
+          skippedCount++;
+          continue;
+        }
+
+        let remindAt: Date;
+        try {
+          remindAt = calculateNoteRemindAt(
+            noteDate,
+            note.remindTime,
+            settings.timeZone,
+            settings.reminderLeadMinutes,
+          );
+        } catch {
+          skippedCount++;
+          continue;
+        }
+
+        const payload = formatNoteReminderNotification(settings.locale, {
+          id: note.id,
+          title: note.title,
+          dueDate: noteDate,
+          remindTime: note.remindTime,
+        });
+
+        const sent = await this.processReminderCandidate({
+          type: 'note',
+          targetId: note.id,
+          accountId: note.accountId,
+          remindAt,
+          payload,
+          now,
+          tenMinutesAgo,
+        });
+
+        if (sent) {
+          sentCount++;
+        } else {
+          skippedCount++;
+        }
+      }
+    }
+
+    // 4. Candidate Class Sessions across [yesterday, today, tomorrow] (SPEC-004 + SPEC-005 + SPEC-006)
     for (const settings of pushTeachers) {
       if (!settings.pushEnabled) {
         continue;
       }
 
-      let teacherToday: string;
+      let teacherWindow: TeacherDateWindow;
       try {
-        teacherToday = calculateTeacherToday(now, settings.timeZone).dateString;
+        teacherWindow = getTeacherWindow(settings.timeZone);
       } catch {
         continue;
       }
 
       const activeSlots = await this.slotRepo.findActiveByAccount(settings.accountId);
-      const generatedSessions = generateClassSessions(activeSlots, teacherToday, teacherToday);
+      const generatedSessions = generateClassSessions(
+        activeSlots,
+        teacherWindow.yesterday,
+        teacherWindow.tomorrow,
+      );
 
       const dbSessions = await this.sessionRepo.findByAccountAndDateRange(
         settings.accountId,
-        teacherToday,
-        teacherToday,
+        teacherWindow.yesterday,
+        teacherWindow.tomorrow,
       );
 
       const overrides = new Map<string, ClassSession>();

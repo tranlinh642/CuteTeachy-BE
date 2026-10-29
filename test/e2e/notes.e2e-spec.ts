@@ -221,6 +221,61 @@ describe('Notes E2E (HTTP API with real Postgres)', () => {
         .set('Authorization', `Bearer ${teacher1.token}`)
         .send({ id: noteId, title: 'Hợp lệ', dueDate: '2026-02-31' })
         .expect(400);
+
+      // Invalid remindTime
+      await request(app.getHttpServer())
+        .post('/notes')
+        .set('Authorization', `Bearer ${teacher1.token}`)
+        .send({ id: noteId, title: 'Hợp lệ', dueDate: '2026-11-20', remindTime: '25:00' })
+        .expect(400);
+    });
+
+    it('creates and updates a note with remindTime (HH:mm) and clears it with null', async () => {
+      const { token } = await createTeacher('teacher_remind@example.com');
+
+      const createRes = await request(app.getHttpServer())
+        .post('/notes')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: noteId,
+          title: 'Note có giờ nhắc',
+          dueDate: '2026-11-20',
+          remindTime: '08:30',
+        })
+        .expect(201);
+
+      expect(createRes.body.dueDate).toBe('2026-11-20');
+      expect(createRes.body.remindTime).toBe('08:30');
+
+      const updateRes = await request(app.getHttpServer())
+        .patch(`/notes/${noteId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          remindTime: '15:45',
+        })
+        .expect(200);
+
+      expect(updateRes.body.remindTime).toBe('15:45');
+
+      // Invalid remindTime on PATCH -> 400
+      await request(app.getHttpServer())
+        .patch(`/notes/${noteId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          remindTime: '8:5',
+        })
+        .expect(400);
+
+      // Clear remindTime with null -> 200
+      const clearRes = await request(app.getHttpServer())
+        .patch(`/notes/${noteId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          remindTime: null,
+        })
+        .expect(200);
+
+      expect(clearRes.body.remindTime).toBeUndefined();
     });
   });
 

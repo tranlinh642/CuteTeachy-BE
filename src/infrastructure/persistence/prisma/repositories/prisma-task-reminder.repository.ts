@@ -8,11 +8,13 @@ import { TaskMapper } from '../mappers/task.mapper';
 export class PrismaTaskReminderReader implements TaskReminderReader {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findUpcomingTasks(): Promise<Task[]> {
+  async findUpcomingTasks(fromDate?: string, toDate?: string): Promise<Task[]> {
     const now = new Date();
     // Allow for teacher time zones across UTC-12 to UTC+14
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const yesterday =
+      fromDate ?? new Date(now.getTime() - 36 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const tomorrow =
+      toDate ?? new Date(now.getTime() + 38 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
     const rawTasks = await this.prisma.task.findMany({
       where: {

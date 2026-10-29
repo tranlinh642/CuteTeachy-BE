@@ -15,6 +15,7 @@ export interface NoteDto {
   imageUrl?: string;
   tagIds: string[];
   dueDate?: string;
+  remindTime?: string;
   completed: boolean;
   createdAt: string;
   updatedAt: string;
@@ -43,6 +44,9 @@ export function toNoteDto(note: Note): NoteDto {
   }
   if (note.dueDate !== null && note.dueDate !== undefined) {
     dto.dueDate = note.dueDate;
+  }
+  if (note.remindTime !== null && note.remindTime !== undefined) {
+    dto.remindTime = note.remindTime;
   }
 
   return dto;

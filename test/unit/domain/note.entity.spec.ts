@@ -22,6 +22,7 @@ describe('Note Entity', () => {
       expect(note.checklist).toEqual([]);
       expect(note.tagIds).toEqual([]);
       expect(note.dueDate).toBeNull();
+      expect(note.remindTime).toBeNull();
       expect(note.completed).toBe(false);
       expect(note.createdAt).toEqual(now);
       expect(note.updatedAt).toEqual(now);
@@ -206,6 +207,93 @@ describe('Note Entity', () => {
           title: 'Tiêu đề',
           dueDate: 'invalid-date',
           now,
+        }),
+      ).toThrow(NoteValidationError);
+    });
+
+    it('accepts valid HH:mm remindTime (00:00 to 23:59) and normalizes empty/null to null', () => {
+      const noteWithRemind = Note.create({
+        id: validId,
+        accountId: validAccountId,
+        title: 'Tiêu đề',
+        dueDate: '2026-11-15',
+        remindTime: '08:30',
+        now,
+      });
+      expect(noteWithRemind.remindTime).toBe('08:30');
+
+      const noteMidnight = Note.create({
+        id: validId,
+        accountId: validAccountId,
+        title: 'Tiêu đề',
+        dueDate: '2026-11-15',
+        remindTime: '00:00',
+        now,
+      });
+      expect(noteMidnight.remindTime).toBe('00:00');
+
+      const noteEndOfDay = Note.create({
+        id: validId,
+        accountId: validAccountId,
+        title: 'Tiêu đề',
+        dueDate: '2026-11-15',
+        remindTime: '23:59',
+        now,
+      });
+      expect(noteEndOfDay.remindTime).toBe('23:59');
+
+      const noteEmptyRemind = Note.create({
+        id: validId,
+        accountId: validAccountId,
+        title: 'Tiêu đề',
+        remindTime: '',
+        now,
+      });
+      expect(noteEmptyRemind.remindTime).toBeNull();
+    });
+
+    it('throws NoteValidationError when remindTime is not in HH:mm format', () => {
+      for (const invalidTime of ['24:00', '8:30', '12:60', 'abc', '10:5']) {
+        expect(() =>
+          Note.create({
+            id: validId,
+            accountId: validAccountId,
+            title: 'Tiêu đề',
+            remindTime: invalidTime,
+            now,
+          }),
+        ).toThrow(NoteValidationError);
+      }
+    });
+
+    it('updates remindTime and validates on update', () => {
+      const note = Note.create({
+        id: validId,
+        accountId: validAccountId,
+        title: 'Tiêu đề',
+        dueDate: '2026-11-15',
+        remindTime: '08:00',
+        now,
+      });
+      expect(note.remindTime).toBe('08:00');
+
+      const updatedTime = new Date('2026-10-26T14:00:00.000Z');
+      note.update({
+        remindTime: '14:45',
+        now: updatedTime,
+      });
+      expect(note.remindTime).toBe('14:45');
+
+      note.update({
+        remindTime: null,
+        now: updatedTime,
+      });
+      expect(note.remindTime).toBeNull();
+
+      expect(() =>
+        note.update({
+          remindTime: '25:00',
+          now: updatedTime,
         }),
       ).toThrow(NoteValidationError);
     });

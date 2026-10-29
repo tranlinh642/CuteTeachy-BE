@@ -12,7 +12,10 @@ export class InMemoryTaskReminderReader implements TaskReminderReader {
     this.tasks.push(task);
   }
 
-  async findUpcomingTasks(): Promise<Task[]> {
+  async findUpcomingTasks(fromDate?: string, toDate?: string): Promise<Task[]> {
+    if (fromDate && toDate) {
+      return this.tasks.filter((t) => t.date >= fromDate && t.date <= toDate);
+    }
     return [...this.tasks];
   }
 

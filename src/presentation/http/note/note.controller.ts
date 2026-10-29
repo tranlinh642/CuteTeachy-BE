@@ -50,6 +50,7 @@ export class NoteController {
       imageUrl: dto.imageUrl,
       tagIds: dto.tagIds,
       dueDate: dto.dueDate,
+      remindTime: dto.remindTime,
       completed: dto.completed,
     });
 
@@ -94,6 +95,7 @@ export class NoteController {
       imageUrl: dto.imageUrl,
       tagIds: dto.tagIds,
       dueDate: dto.dueDate,
+      remindTime: dto.remindTime,
       completed: dto.completed,
     });
   }
