@@ -348,6 +348,10 @@ export class DispatchRemindersUseCase {
           override && override.room !== undefined && override.room !== null
             ? override.room
             : genSession.room;
+        const effectiveCategory =
+          override && override.category !== undefined && override.category !== null
+            ? override.category
+            : genSession.category;
 
         let remindAt: Date;
         try {
@@ -369,6 +373,7 @@ export class DispatchRemindersUseCase {
           subject: effectiveSubject,
           grade: effectiveGrade,
           room: effectiveRoom,
+          category: effectiveCategory,
         });
 
         const sent = await this.processReminderCandidate({
@@ -416,6 +421,7 @@ export class DispatchRemindersUseCase {
           subject: adHoc.subject ?? '',
           grade: adHoc.grade ?? undefined,
           room: adHoc.room ?? undefined,
+          category: adHoc.category ?? 'school_teaching',
         });
 
         const sent = await this.processReminderCandidate({

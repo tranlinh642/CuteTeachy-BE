@@ -42,6 +42,12 @@ enum TaskPriority {
   high
 }
 
+enum ScheduleCategory {
+  school_teaching
+  extra_teaching
+  self_study
+}
+
 model Account {
   id              String    @id @default(uuid())
   email           String    @unique
@@ -284,7 +290,7 @@ model Inspiration {
 }
 
 model TimetableSlot {
-  id            String    @id
+  id            String           @id
   accountId     String
   weekday       Int
   startTime     String
@@ -293,10 +299,11 @@ model TimetableSlot {
   grade         String?
   room          String?
   tone          Tone
+  category      ScheduleCategory @default(school_teaching)
   effectiveFrom String
   effectiveTo   String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
   deletedAt     DateTime?
 
   account       Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
@@ -310,7 +317,7 @@ model TimetableSlot {
 }
 
 model ClassSession {
-  id              String    @id
+  id              String            @id
   accountId       String
   timetableSlotId String?
   date            String
@@ -320,11 +327,12 @@ model ClassSession {
   grade           String?
   room            String?
   tone            Tone?
+  category        ScheduleCategory?
   topic           String?
-  prepItems       Json      @default("[]")
-  cancelled       Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  prepItems       Json              @default("[]")
+  cancelled       Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
   deletedAt       DateTime?
 
   account         Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)

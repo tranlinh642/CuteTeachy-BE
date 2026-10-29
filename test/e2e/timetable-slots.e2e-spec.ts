@@ -115,10 +115,68 @@ describe('Timetable Slots E2E (HTTP API with real Postgres)', () => {
       expect(res.body.grade).toBe('10A');
       expect(res.body.room).toBe('302');
       expect(res.body.tone).toBe('blue');
+      expect(res.body.category).toBe('school_teaching');
       expect(res.body.effectiveFrom).toBe('2026-10-01');
       expect(res.body.effectiveTo).toBe('2026-12-31');
       expect(res.body.createdAt).toBeDefined();
       expect(res.body.updatedAt).toBeDefined();
+    });
+
+    it('creates and updates timetable slots with all 3 ScheduleCategory values (school_teaching, extra_teaching, self_study) and rejects invalid category', async () => {
+      const { token } = await createTeacher('teacher.category@example.com');
+
+      const extraId = '11111111-2222-4111-8111-111111111111';
+      const studyId = '11111111-3333-4111-8111-111111111111';
+
+      const extraRes = await request(app.getHttpServer())
+        .post('/timetable-slots')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          ...validPayload,
+          id: extraId,
+          weekday: 2,
+          startTime: '18:00',
+          endTime: '19:30',
+          subject: 'Toán bồi dưỡng',
+          category: 'extra_teaching',
+          effectiveFrom: '2026-12-01',
+        })
+        .expect(201);
+      expect(extraRes.body.category).toBe('extra_teaching');
+
+      const studyRes = await request(app.getHttpServer())
+        .post('/timetable-slots')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          ...validPayload,
+          id: studyId,
+          weekday: 6,
+          startTime: '19:00',
+          endTime: '21:00',
+          subject: 'IELTS Writing',
+          category: 'self_study',
+          effectiveFrom: '2026-12-01',
+        })
+        .expect(201);
+      expect(studyRes.body.category).toBe('self_study');
+
+      const patchRes = await request(app.getHttpServer())
+        .patch(`/timetable-slots/${extraId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'self_study' })
+        .expect(200);
+      expect(patchRes.body.current.category).toBe('self_study');
+
+      await request(app.getHttpServer())
+        .post('/timetable-slots')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          ...validPayload,
+          id: '11111111-4444-4111-8111-111111111111',
+          weekday: 7,
+          category: 'invalid_category',
+        })
+        .expect(400);
     });
 
     it('returns 200 OK idempotent on duplicate submission with identical payload', async () => {

@@ -439,6 +439,64 @@ describe('POST /internal/reminders/dispatch (e2e)', () => {
       expect(dispatchRes.body.sent).toBe(0);
       expect(fakePushSender.getSentMessages()).toHaveLength(0);
     });
+
+    it('formats class session reminder titles according to ScheduleCategory (school_teaching, extra_teaching, self_study)', async () => {
+      const { token } = await createTeacher('teacher-categories@example.com');
+
+      await request(app.getHttpServer())
+        .post('/push/subscriptions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          endpoint: 'https://fcm.googleapis.com/fcm/send/categories-device',
+          keys: {
+            p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QT9t044Yjs2Bm',
+            auth: 'tBHItJI5svbpez7KI4CCXg',
+          },
+        })
+        .expect(201);
+
+      // 1. TimetableSlot with extra_teaching on Tuesday 10:00
+      await request(app.getHttpServer())
+        .post('/timetable-slots')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: 'aaaa1111-1111-4111-8111-111111111111',
+          weekday: 2,
+          startTime: '10:00',
+          endTime: '11:30',
+          subject: 'Toán bồi dưỡng',
+          grade: '9A',
+          tone: 'lavender',
+          category: 'extra_teaching',
+          effectiveFrom: '2026-10-01',
+        })
+        .expect(201);
+
+      // 2. Ad-hoc ClassSession with self_study on 2026-10-27 10:00
+      await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: 'bbbb2222-2222-4111-8111-222222222222',
+          date: '2026-10-27',
+          startTime: '10:00',
+          endTime: '11:30',
+          subject: 'IELTS Academic',
+          tone: 'mint',
+          category: 'self_study',
+        })
+        .expect(201);
+
+      const dispatchRes = await request(app.getHttpServer())
+        .post('/internal/reminders/dispatch')
+        .set('X-Cron-Secret', validCronSecret)
+        .expect(200);
+
+      expect(dispatchRes.body.sent).toBe(2);
+      const titles = fakePushSender.getSentMessages().map((m) => m.payload.title);
+      expect(titles).toContain('Ca dạy thêm: Toán bồi dưỡng 9A');
+      expect(titles).toContain('Lịch học: IELTS Academic');
+    });
   });
 
   describe('Dispatch Flow - Note Reminders & Midnight Boundary (S6-BE-01)', () => {

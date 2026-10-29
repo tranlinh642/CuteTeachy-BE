@@ -170,6 +170,61 @@ describe('Reminder Template', () => {
       expect(payload.title).toBe('Tiết dạy: Toán học 10A');
       expect(payload.body).toBe('Bắt đầu lúc 07:30 tại P.302');
     });
+
+    it('formats prefix by ScheduleCategory (school_teaching, extra_teaching, self_study) in vi and en', () => {
+      expect(
+        formatClassSessionReminderNotification('vi', {
+          ...sessionWithAll,
+          category: 'school_teaching',
+        }).title,
+      ).toBe('Tiết dạy: Toán học 10A');
+
+      expect(
+        formatClassSessionReminderNotification('en', {
+          ...sessionWithAll,
+          subject: 'Math',
+          category: 'school_teaching',
+        }).title,
+      ).toBe('Class session: Math 10A');
+
+      expect(
+        formatClassSessionReminderNotification('vi', {
+          ...sessionWithAll,
+          subject: 'Toán bồi dưỡng',
+          grade: '9A',
+          category: 'extra_teaching',
+        }).title,
+      ).toBe('Ca dạy thêm: Toán bồi dưỡng 9A');
+
+      expect(
+        formatClassSessionReminderNotification('en', {
+          ...sessionWithAll,
+          subject: 'Math Tutoring',
+          grade: '9A',
+          category: 'extra_teaching',
+        }).title,
+      ).toBe('Extra tutoring: Math Tutoring 9A');
+
+      expect(
+        formatClassSessionReminderNotification('vi', {
+          id: 'session-study',
+          date: '2026-10-27',
+          startTime: '19:00',
+          subject: 'IELTS Writing',
+          category: 'self_study',
+        }).title,
+      ).toBe('Lịch học: IELTS Writing');
+
+      expect(
+        formatClassSessionReminderNotification('en', {
+          id: 'session-study',
+          date: '2026-10-27',
+          startTime: '19:00',
+          subject: 'IELTS Writing',
+          category: 'self_study',
+        }).title,
+      ).toBe('Study session: IELTS Writing');
+    });
   });
 
   describe('Note Reminder Template (S6-BE-01)', () => {

@@ -1,5 +1,6 @@
 import { ClassSession } from '../../domain/class-session/class-session.entity';
 import { Tone } from '../../domain/timetable/tone.vo';
+import { ScheduleCategory } from '../../domain/timetable/schedule-category.vo';
 import { PayloadConflictError } from '../../domain/class-session/class-session.errors';
 import { IdConflictError, EntityGoneError } from '../../domain/shared/sync.errors';
 import type { Clock } from '../shared/ports/clock.port';
@@ -16,6 +17,7 @@ export interface CreateAdHocClassSessionInput {
   grade?: string | null;
   room?: string | null;
   tone: Tone;
+  category?: ScheduleCategory;
   topic?: string | null;
   prepItems?: PrepItemDto[];
   cancelled?: boolean;
@@ -52,6 +54,7 @@ export class CreateAdHocClassSessionUseCase {
         grade: input.grade,
         room: input.room,
         tone: input.tone,
+        category: input.category,
         topic: input.topic,
         prepItems: input.prepItems,
         cancelled: input.cancelled,
@@ -77,6 +80,7 @@ export class CreateAdHocClassSessionUseCase {
       grade: input.grade,
       room: input.room,
       tone: input.tone,
+      category: input.category,
       topic: input.topic,
       prepItems: input.prepItems,
       cancelled: input.cancelled,

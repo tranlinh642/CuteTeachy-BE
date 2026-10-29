@@ -1,4 +1,8 @@
 import { Tone } from '../../domain/timetable/tone.vo';
+import {
+  DEFAULT_SCHEDULE_CATEGORY,
+  ScheduleCategory,
+} from '../../domain/timetable/schedule-category.vo';
 import { ClassSession } from '../../domain/class-session/class-session.entity';
 
 export interface PrepItemDto {
@@ -17,6 +21,7 @@ export interface ClassSessionDto {
   grade?: string;
   room?: string;
   tone: Tone;
+  category: ScheduleCategory;
   topic?: string;
   prepItems: PrepItemDto[];
   cancelled: boolean;
@@ -32,6 +37,7 @@ export function toClassSessionDto(session: ClassSession): ClassSessionDto {
     endTime: session.endTime ?? '',
     subject: session.subject ?? '',
     tone: session.tone ?? 'blue',
+    category: session.category ?? DEFAULT_SCHEDULE_CATEGORY,
     prepItems: session.prepItems.map((item) => ({
       id: item.id,
       label: item.label,

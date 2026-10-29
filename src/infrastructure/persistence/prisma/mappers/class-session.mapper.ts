@@ -1,7 +1,13 @@
-import { ClassSession as PrismaClassSession, Prisma, Tone as PrismaTone } from '@prisma/client';
+import {
+  ClassSession as PrismaClassSession,
+  Prisma,
+  ScheduleCategory as PrismaScheduleCategory,
+  Tone as PrismaTone,
+} from '@prisma/client';
 import { ClassSession } from '../../../../domain/class-session/class-session.entity';
 import { PrepItem } from '../../../../domain/class-session/prep-item.vo';
 import { Tone } from '../../../../domain/timetable/tone.vo';
+import { ScheduleCategory } from '../../../../domain/timetable/schedule-category.vo';
 
 export class ClassSessionMapper {
   static toDomain(raw: PrismaClassSession): ClassSession {
@@ -25,6 +31,7 @@ export class ClassSessionMapper {
       grade: raw.grade,
       room: raw.room,
       tone: (raw.tone as Tone) ?? null,
+      category: (raw.category as ScheduleCategory) ?? null,
       topic: raw.topic,
       prepItems,
       cancelled: raw.cancelled,
@@ -46,6 +53,7 @@ export class ClassSessionMapper {
       grade: session.grade,
       room: session.room,
       tone: session.tone ? (session.tone as PrismaTone) : null,
+      category: session.category ? (session.category as PrismaScheduleCategory) : null,
       topic: session.topic,
       prepItems: session.prepItems as unknown as Prisma.InputJsonValue,
       cancelled: session.cancelled,
@@ -64,6 +72,7 @@ export class ClassSessionMapper {
       grade: session.grade,
       room: session.room,
       tone: session.tone ? (session.tone as PrismaTone) : null,
+      category: session.category ? (session.category as PrismaScheduleCategory) : null,
       topic: session.topic,
       prepItems: session.prepItems as unknown as Prisma.InputJsonValue,
       cancelled: session.cancelled,

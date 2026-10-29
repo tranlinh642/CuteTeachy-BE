@@ -72,6 +72,38 @@ describe('Timetable Slot Modifier (Domain)', () => {
         }
       });
 
+      it('preserves or updates category when splitting slot', () => {
+        const slot = TimetableSlot.create({
+          id: oldSlotId,
+          accountId,
+          weekday: 1,
+          startTime: '07:30',
+          endTime: '08:15',
+          subject: 'Toán dạy thêm',
+          tone: 'blue',
+          category: 'extra_teaching',
+          effectiveFrom: '2026-10-01',
+          now: new Date('2026-10-01T08:00:00.000Z'),
+        });
+
+        const result = planSlotModification({
+          slot,
+          today,
+          yesterday,
+          newSlotId,
+          now,
+          updates: {
+            category: 'self_study',
+          },
+        });
+
+        expect(result.type).toBe('split');
+        if (result.type === 'split') {
+          expect(result.previous.category).toBe('extra_teaching');
+          expect(result.current.category).toBe('self_study');
+        }
+      });
+
       it('discards overrides when weekday changes during split', () => {
         const slot = TimetableSlot.create({
           id: oldSlotId,
