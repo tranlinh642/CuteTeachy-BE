@@ -88,6 +88,7 @@ export class PrismaClassSessionRepository implements ClassSessionRepository {
           grade: override.grade,
           room: override.room,
           tone: override.tone,
+          category: override.category,
           topic: override.topic,
           prepItems: override.prepItems ?? [],
           cancelled: override.cancelled,

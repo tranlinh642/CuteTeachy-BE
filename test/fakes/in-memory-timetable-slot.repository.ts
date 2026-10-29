@@ -54,6 +54,7 @@ export class InMemoryTimetableSlotRepository implements TimetableSlotRepository 
           grade: slot.grade,
           room: slot.room,
           tone: slot.tone,
+          category: slot.category,
           effectiveFrom: slot.effectiveFrom,
           effectiveTo: slot.effectiveTo,
           createdAt: slot.createdAt,

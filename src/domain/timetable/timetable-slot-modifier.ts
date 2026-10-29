@@ -1,5 +1,6 @@
 import { TimetableSlot } from './timetable-slot.entity';
 import { Tone } from './tone.vo';
+import { ScheduleCategory } from './schedule-category.vo';
 import { TimetableValidationError } from './timetable.errors';
 
 export interface ModifySlotInput {
@@ -16,6 +17,7 @@ export interface ModifySlotInput {
     grade?: string | null;
     room?: string | null;
     tone?: Tone;
+    category?: ScheduleCategory;
     effectiveFrom?: string;
     effectiveTo?: string | null;
   };
@@ -62,6 +64,7 @@ export function planSlotModification(input: ModifySlotInput): SlotModificationRe
     const newGrade = updates.grade !== undefined ? updates.grade : oldSlot.grade;
     const newRoom = updates.room !== undefined ? updates.room : oldSlot.room;
     const newTone = updates.tone ?? oldSlot.tone;
+    const newCategory = updates.category ?? oldSlot.category;
     const newEffectiveFrom = today; // always today
     const newEffectiveTo =
       updates.effectiveTo !== undefined ? updates.effectiveTo : originalEffectiveTo;
@@ -76,6 +79,7 @@ export function planSlotModification(input: ModifySlotInput): SlotModificationRe
       grade: newGrade,
       room: newRoom,
       tone: newTone,
+      category: newCategory,
       effectiveFrom: newEffectiveFrom,
       effectiveTo: newEffectiveTo,
       now,

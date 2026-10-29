@@ -58,12 +58,54 @@ describe('ListClassSessionsUseCase', () => {
       grade: '10A',
       room: '302',
       tone: 'blue',
+      category: 'school_teaching',
       prepItems: [],
       cancelled: false,
       updatedAt: now.toISOString(),
     });
     expect(envelope.deletedIds).toEqual([]);
     expect(envelope.serverTime).toBe(now.toISOString());
+  });
+
+  it('inherits slot category and allows override category to take precedence', async () => {
+    const slotId = '22222222-2222-4222-8222-222222222222';
+    const slot = TimetableSlot.create({
+      id: slotId,
+      accountId,
+      weekday: 1,
+      startTime: '18:00',
+      endTime: '19:30',
+      subject: 'Toán 9A',
+      tone: 'lavender',
+      category: 'extra_teaching',
+      effectiveFrom: '2026-10-01',
+      now,
+    });
+    await slotRepo.save(slot);
+
+    const envelope1 = await useCase.execute({
+      accountId,
+      from: '2026-10-26',
+      to: '2026-10-30',
+    });
+    expect(envelope1.items[0].category).toBe('extra_teaching');
+
+    const override = ClassSession.createOverride({
+      accountId,
+      timetableSlotId: slotId,
+      date: '2026-10-26',
+      category: 'self_study',
+      topic: 'Tự ôn chuyên đề',
+      now,
+    });
+    await sessionRepo.save(override);
+
+    const envelope2 = await useCase.execute({
+      accountId,
+      from: '2026-10-26',
+      to: '2026-10-30',
+    });
+    expect(envelope2.items[0].category).toBe('self_study');
   });
 
   it('applies override to generated session (topic, prepItems, cancelled)', async () => {

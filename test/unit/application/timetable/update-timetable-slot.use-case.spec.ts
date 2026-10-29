@@ -292,6 +292,16 @@ describe('UpdateTimetableSlotUseCase', () => {
       expect(result.current.effectiveFrom).toBe('2026-10-27');
     });
 
+    it('updates category in place when provided', async () => {
+      const result = await useCase.execute({
+        id: futureSlotId,
+        accountId,
+        category: 'self_study',
+      });
+
+      expect(result.current.category).toBe('self_study');
+    });
+
     it('throws 409 conflict when in-place edit causes collision with another slot', async () => {
       const otherSlot = TimetableSlot.create({
         id: '44444444-4444-4444-8444-444444444444',

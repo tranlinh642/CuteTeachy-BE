@@ -72,6 +72,7 @@ export class ListClassSessionsUseCase {
 
       return {
         ...session,
+        category: override.category ?? session.category,
         topic: override.topic !== null ? override.topic : undefined,
         prepItems: override.prepItems.map((p) => ({
           id: p.id,
@@ -185,6 +186,7 @@ export class ListClassSessionsUseCase {
               endTime: slot.endTime,
               subject: slot.subject,
               tone: slot.tone,
+              category: session.category ?? slot.category,
               prepItems: session.prepItems.map((p) => ({
                 id: p.id,
                 label: p.label,
@@ -264,6 +266,7 @@ export class ListClassSessionsUseCase {
 
       return {
         ...session,
+        category: override.category ?? session.category,
         topic: override.topic !== null ? override.topic : undefined,
         prepItems: override.prepItems.map((p) => ({
           id: p.id,

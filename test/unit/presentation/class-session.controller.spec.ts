@@ -28,6 +28,7 @@ describe('ClassSessionController', () => {
     grade: '10A',
     room: '302',
     tone: 'blue',
+    category: 'school_teaching',
     prepItems: [],
     cancelled: false,
     updatedAt: '2026-10-27T08:00:00.000Z',
@@ -77,12 +78,16 @@ describe('ClassSessionController', () => {
           endTime: '09:30',
           subject: 'Toán',
           tone: 'blue',
+          category: 'self_study',
         },
         res,
       );
 
       expect(res.status).toHaveBeenCalledWith(HttpStatus.CREATED);
       expect(result).toEqual(mockSession);
+      expect(createAdHocUseCase.execute).toHaveBeenCalledWith(
+        expect.objectContaining({ category: 'self_study' }),
+      );
     });
 
     it('sets status 200 when created: false (idempotent)', async () => {

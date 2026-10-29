@@ -1,5 +1,6 @@
 import { TimetableSlot } from '../timetable/timetable-slot.entity';
 import { Tone } from '../timetable/tone.vo';
+import { ScheduleCategory } from '../timetable/schedule-category.vo';
 
 export interface GeneratedClassSession {
   id: string;
@@ -11,6 +12,7 @@ export interface GeneratedClassSession {
   grade?: string;
   room?: string;
   tone: Tone;
+  category: ScheduleCategory;
   topic?: string;
   prepItems: { id: string; label: string; done: boolean }[];
   cancelled: boolean;
@@ -77,6 +79,7 @@ export function generateClassSessions(
         endTime: slot.endTime,
         subject: slot.subject,
         tone: slot.tone,
+        category: slot.category,
         prepItems: [],
         cancelled: false,
         updatedAt: slot.updatedAt.toISOString(),

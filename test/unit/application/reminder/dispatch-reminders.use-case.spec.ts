@@ -751,6 +751,43 @@ describe('DispatchRemindersUseCase', () => {
       expect(inAppNotificationRepo.getAll()[0].type).toBe('class_session');
     });
 
+    it('hiển thị đúng tiền tố theo category (school_teaching, extra_teaching, self_study) cho cả buổi sinh từ slot và buổi lẻ', async () => {
+      const extraSlot = TimetableSlot.create({
+        id: '11111111-1111-4000-8000-000000000001',
+        accountId: teacherId,
+        weekday: 2,
+        startTime: '10:00',
+        endTime: '11:30',
+        subject: 'Toán bồi dưỡng',
+        grade: '9A',
+        tone: 'lavender',
+        category: 'extra_teaching',
+        effectiveFrom: '2026-10-01',
+        now: exactRemindTime,
+      });
+      await slotRepo.save(extraSlot);
+
+      const studyAdHoc = ClassSession.createAdHoc({
+        id: '22222222-2222-4000-8000-000000000002',
+        accountId: teacherId,
+        date: '2026-10-27',
+        startTime: '10:00',
+        endTime: '11:30',
+        subject: 'IELTS Speaking',
+        tone: 'mint',
+        category: 'self_study',
+        now: exactRemindTime,
+      });
+      await sessionRepo.save(studyAdHoc);
+
+      const result = await useCase.execute();
+      expect(result.sent).toBe(2);
+
+      const titles = fakePushSender.getSentMessages().map((m) => m.payload.title);
+      expect(titles).toContain('Ca dạy thêm: Toán bồi dưỡng 9A');
+      expect(titles).toContain('Lịch học: IELTS Speaking');
+    });
+
     it('khối lượng trả lời nhanh: xử lý hàng chục slots và sessions trong thời gian ngắn', async () => {
       for (let i = 0; i < 30; i++) {
         const paddedIndex = String(i + 10).padStart(12, '0');

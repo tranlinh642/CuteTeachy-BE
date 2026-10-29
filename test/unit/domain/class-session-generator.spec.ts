@@ -59,6 +59,7 @@ describe('ClassSession Generator Domain Logic', () => {
       grade: '10A',
       room: '302',
       tone: 'blue',
+      category: 'school_teaching',
       prepItems: [],
       cancelled: false,
       updatedAt: now.toISOString(),
@@ -72,6 +73,7 @@ describe('ClassSession Generator Domain Logic', () => {
       endTime: '10:30',
       subject: 'Hóa học',
       tone: 'rose',
+      category: 'school_teaching',
       prepItems: [],
       cancelled: false,
       updatedAt: now.toISOString(),
@@ -79,6 +81,38 @@ describe('ClassSession Generator Domain Logic', () => {
 
     expect(sessions[2].id).toBe(`${slot1.id}:2026-11-02`);
     expect(sessions[3].id).toBe(`${slot2.id}:2026-11-04`);
+  });
+
+  it('inherits slot category (school_teaching, extra_teaching, self_study) on generated sessions', () => {
+    const extraSlot = TimetableSlot.create({
+      id: '55555555-5555-4555-8555-555555555555',
+      accountId: 'acc-1',
+      weekday: 2,
+      startTime: '18:00',
+      endTime: '19:30',
+      subject: 'Toán 9A',
+      tone: 'lavender',
+      category: 'extra_teaching',
+      effectiveFrom: '2026-10-01',
+      now,
+    });
+    const studySlot = TimetableSlot.create({
+      id: '66666666-6666-4666-8666-666666666666',
+      accountId: 'acc-1',
+      weekday: 6,
+      startTime: '19:00',
+      endTime: '21:00',
+      subject: 'IELTS',
+      tone: 'mint',
+      category: 'self_study',
+      effectiveFrom: '2026-10-01',
+      now,
+    });
+
+    const sessions = generateClassSessions([extraSlot, studySlot], '2026-10-26', '2026-11-01');
+    expect(sessions).toHaveLength(2);
+    expect(sessions[0].category).toBe('extra_teaching');
+    expect(sessions[1].category).toBe('self_study');
   });
 
   it('produces identical deterministic sessions on repeated runs', () => {
