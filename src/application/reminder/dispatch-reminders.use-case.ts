@@ -4,12 +4,14 @@ import { TeacherSettingsReader } from '../settings/ports/teacher-settings.port';
 import { SentReminderRepository } from './ports/sent-reminder.repository.port';
 import { TaskReminderReader } from './ports/task-reminder.port';
 import { NoteReminderReader } from './ports/note-reminder.port';
+import { InAppNotificationRepository } from '../notification/ports/in-app-notification.repository.port';
 import { SendPushToTeacherUseCase } from '../push-subscription/send-push-to-teacher.use-case';
 import { PurgeSoftDeletedTagsUseCase } from '../tag/purge-soft-deleted-tags.use-case';
 import { PurgeSoftDeletedTasksUseCase } from '../task/purge-soft-deleted-tasks.use-case';
 import { TimetableSlotRepository } from '../timetable/ports/timetable-slot.repository.port';
 import { ClassSessionRepository } from '../class-session/ports/class-session.repository.port';
 import { SentReminder } from '../../domain/reminder/sent-reminder.entity';
+import { InAppNotification } from '../../domain/notification/in-app-notification.entity';
 import { ReminderType } from '../../domain/reminder/reminder-type.vo';
 import {
   calculateClassSessionRemindAt,
@@ -37,6 +39,7 @@ interface ProcessReminderParams {
   type: ReminderType;
   targetId: string;
   accountId: string;
+  pushEnabled: boolean;
   remindAt: Date;
   payload: {
     title: string;
@@ -67,18 +70,27 @@ export class DispatchRemindersUseCase {
     private readonly purgeSoftDeletedTagsUseCase?: PurgeSoftDeletedTagsUseCase,
     private readonly purgeSoftDeletedTasksUseCase?: PurgeSoftDeletedTasksUseCase,
     private readonly noteReader?: NoteReminderReader,
+    private readonly inAppNotificationRepo?: InAppNotificationRepository,
   ) {}
 
   async execute(): Promise<DispatchRemindersOutput> {
     const now = this.clock.now();
     const tenMinutesAgo = new Date(now.getTime() - TEN_MINUTES_MS);
+    const thirtyDaysAgo = new Date(now.getTime() - THIRTY_DAYS_MS);
 
-    // 1. Housekeeping: cleanup old sent reminders (> 30 days), soft-deleted tags and soft-deleted tasks
+    // 1. Housekeeping: cleanup old sent reminders (> 30 days), old in-app notifications (> 30 days), soft-deleted tags and soft-deleted tasks
     try {
-      const thirtyDaysAgo = new Date(now.getTime() - THIRTY_DAYS_MS);
       await this.sentReminderRepo.deletePermanentlyBefore(thirtyDaysAgo);
     } catch {
       // Non-blocking cleanup
+    }
+
+    if (this.inAppNotificationRepo) {
+      try {
+        await this.inAppNotificationRepo.deletePermanentlyBefore(thirtyDaysAgo);
+      } catch {
+        // Non-blocking cleanup
+      }
     }
 
     if (this.purgeSoftDeletedTagsUseCase) {
@@ -100,10 +112,12 @@ export class DispatchRemindersUseCase {
     let sentCount = 0;
     let skippedCount = 0;
 
-    // 2. Fetch push-enabled teachers to optimize settings queries and prevent N+1
-    const pushTeachers = await this.settingsReader.findPushEnabledTeachers();
+    // 2. Fetch teacher settings to optimize queries and prevent N+1
+    const teacherSettingsList = this.settingsReader.findAllTeachers
+      ? await this.settingsReader.findAllTeachers()
+      : await this.settingsReader.findPushEnabledTeachers();
     const settingsCache = new Map<string, Settings | null>(
-      pushTeachers.map((s) => [s.accountId, s]),
+      teacherSettingsList.map((s) => [s.accountId, s]),
     );
 
     const getTeacherSettings = async (accountId: string): Promise<Settings | null> => {
@@ -129,7 +143,7 @@ export class DispatchRemindersUseCase {
     // Compute global [fromDate, toDate] bounding window across all teacher timezones
     let globalFromDate = new Date(now.getTime() - 36 * 60 * 60 * 1000).toISOString().slice(0, 10);
     let globalToDate = new Date(now.getTime() + 38 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    for (const s of pushTeachers) {
+    for (const s of teacherSettingsList) {
       try {
         const win = getTeacherWindow(s.timeZone);
         if (win.yesterday < globalFromDate) globalFromDate = win.yesterday;
@@ -151,7 +165,7 @@ export class DispatchRemindersUseCase {
 
       // Teacher settings check
       const settings = await getTeacherSettings(task.accountId);
-      if (!settings || !settings.pushEnabled) {
+      if (!settings || (!settings.pushEnabled && !this.inAppNotificationRepo)) {
         skippedCount++;
         continue;
       }
@@ -194,6 +208,7 @@ export class DispatchRemindersUseCase {
         type: 'task',
         targetId: task.id,
         accountId: task.accountId,
+        pushEnabled: settings.pushEnabled,
         remindAt,
         payload,
         now,
@@ -218,7 +233,7 @@ export class DispatchRemindersUseCase {
         }
 
         const settings = await getTeacherSettings(note.accountId);
-        if (!settings || !settings.pushEnabled) {
+        if (!settings || (!settings.pushEnabled && !this.inAppNotificationRepo)) {
           skippedCount++;
           continue;
         }
@@ -261,6 +276,7 @@ export class DispatchRemindersUseCase {
           type: 'note',
           targetId: note.id,
           accountId: note.accountId,
+          pushEnabled: settings.pushEnabled,
           remindAt,
           payload,
           now,
@@ -276,8 +292,8 @@ export class DispatchRemindersUseCase {
     }
 
     // 4. Candidate Class Sessions across [yesterday, today, tomorrow] (SPEC-004 + SPEC-005 + SPEC-006)
-    for (const settings of pushTeachers) {
-      if (!settings.pushEnabled) {
+    for (const settings of teacherSettingsList) {
+      if (!settings.pushEnabled && !this.inAppNotificationRepo) {
         continue;
       }
 
@@ -359,6 +375,7 @@ export class DispatchRemindersUseCase {
           type: 'class_session',
           targetId: genSession.id,
           accountId: settings.accountId,
+          pushEnabled: settings.pushEnabled,
           remindAt,
           payload,
           now,
@@ -405,6 +422,7 @@ export class DispatchRemindersUseCase {
           type: 'class_session',
           targetId: adHoc.id,
           accountId: settings.accountId,
+          pushEnabled: settings.pushEnabled,
           remindAt,
           payload,
           now,
@@ -426,7 +444,8 @@ export class DispatchRemindersUseCase {
   }
 
   private async processReminderCandidate(params: ProcessReminderParams): Promise<boolean> {
-    const { type, targetId, accountId, remindAt, payload, now, tenMinutesAgo } = params;
+    const { type, targetId, accountId, pushEnabled, remindAt, payload, now, tenMinutesAgo } =
+      params;
 
     // Check window: remindAt ∈ (now - 10 minutes, now]
     if (remindAt.getTime() > now.getTime() || remindAt.getTime() < tenMinutesAgo.getTime()) {
@@ -439,13 +458,33 @@ export class DispatchRemindersUseCase {
       return false;
     }
 
-    // Send push notification to teacher's devices
-    const pushResult = await this.sendPushUseCase.execute({
-      accountId,
-      payload,
-    });
+    let inAppCreated = false;
+    if (this.inAppNotificationRepo) {
+      const notification = InAppNotification.create({
+        id: this.idGenerator.next(),
+        accountId,
+        type,
+        targetId,
+        title: payload.title,
+        body: payload.body,
+        url: payload.url,
+        data: payload.data,
+        now,
+      });
+      await this.inAppNotificationRepo.save(notification);
+      inAppCreated = true;
+    }
 
-    if (pushResult.sent > 0) {
+    let pushSent = 0;
+    if (pushEnabled) {
+      const pushResult = await this.sendPushUseCase.execute({
+        accountId,
+        payload,
+      });
+      pushSent = pushResult.sent;
+    }
+
+    if (inAppCreated || pushSent > 0) {
       const sentRecord = SentReminder.create({
         id: this.idGenerator.next(),
         type,

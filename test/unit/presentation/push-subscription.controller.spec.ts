@@ -4,6 +4,7 @@ import { PushSubscriptionController } from '../../../src/presentation/http/push-
 import { GetVapidPublicKeyUseCase } from '../../../src/application/push-subscription/get-vapid-public-key.use-case';
 import { UpsertPushSubscriptionUseCase } from '../../../src/application/push-subscription/upsert-push-subscription.use-case';
 import { DeletePushSubscriptionUseCase } from '../../../src/application/push-subscription/delete-push-subscription.use-case';
+import { SendTestNotificationUseCase } from '../../../src/application/push-subscription/send-test-notification.use-case';
 import { AccessTokenPayload } from '../../../src/application/account/ports/token.service.port';
 
 describe('PushSubscriptionController', () => {
@@ -11,6 +12,7 @@ describe('PushSubscriptionController', () => {
   let getVapidPublicKeyUseCase: jest.Mocked<GetVapidPublicKeyUseCase>;
   let upsertPushSubscriptionUseCase: jest.Mocked<UpsertPushSubscriptionUseCase>;
   let deletePushSubscriptionUseCase: jest.Mocked<DeletePushSubscriptionUseCase>;
+  let sendTestNotificationUseCase: jest.Mocked<SendTestNotificationUseCase>;
 
   const mockUser: AccessTokenPayload = {
     sub: 'teacher-1',
@@ -35,10 +37,15 @@ describe('PushSubscriptionController', () => {
       execute: jest.fn(),
     } as any;
 
+    sendTestNotificationUseCase = {
+      execute: jest.fn(),
+    } as any;
+
     controller = new PushSubscriptionController(
       getVapidPublicKeyUseCase,
       upsertPushSubscriptionUseCase,
       deletePushSubscriptionUseCase,
+      sendTestNotificationUseCase,
     );
   });
 
@@ -145,6 +152,27 @@ describe('PushSubscriptionController', () => {
       await controller.deleteSubscription(mockUser, undefined, undefined);
 
       expect(deletePushSubscriptionUseCase.execute).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /push/subscriptions/test', () => {
+    it('delegates to SendTestNotificationUseCase and returns result', async () => {
+      sendTestNotificationUseCase.execute.mockResolvedValueOnce({
+        sent: 1,
+        failed: 0,
+        inAppCreated: true,
+      });
+
+      const result = await controller.sendTestNotification(mockUser);
+
+      expect(result).toEqual({
+        sent: 1,
+        failed: 0,
+        inAppCreated: true,
+      });
+      expect(sendTestNotificationUseCase.execute).toHaveBeenCalledWith({
+        accountId: 'teacher-1',
+      });
     });
   });
 });

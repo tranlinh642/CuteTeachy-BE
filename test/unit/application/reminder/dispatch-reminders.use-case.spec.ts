@@ -3,6 +3,7 @@ import { InMemoryTaskReminderReader } from '../../../fakes/in-memory-task-remind
 import { InMemoryNoteReminderReader } from '../../../fakes/in-memory-note-reminder.reader';
 import { InMemorySettingsRepository } from '../../../fakes/in-memory-settings.repository';
 import { InMemorySentReminderRepository } from '../../../fakes/in-memory-sent-reminder.repository';
+import { InMemoryInAppNotificationRepository } from '../../../fakes/in-memory-in-app-notification.repository';
 import { InMemoryPushSubscriptionRepository } from '../../../fakes/in-memory-push-subscription.repository';
 import { InMemoryTimetableSlotRepository } from '../../../fakes/in-memory-timetable-slot.repository';
 import { InMemoryClassSessionRepository } from '../../../fakes/in-memory-class-session.repository';
@@ -13,6 +14,7 @@ import { Note } from '../../../../src/domain/note/note.entity';
 import { Settings } from '../../../../src/domain/settings/settings.entity';
 import { PushSubscription } from '../../../../src/domain/push-subscription/push-subscription.entity';
 import { SentReminder } from '../../../../src/domain/reminder/sent-reminder.entity';
+import { InAppNotification } from '../../../../src/domain/notification/in-app-notification.entity';
 import { TimetableSlot } from '../../../../src/domain/timetable/timetable-slot.entity';
 import { ClassSession } from '../../../../src/domain/class-session/class-session.entity';
 import { PurgeSoftDeletedTagsUseCase } from '../../../../src/application/tag/purge-soft-deleted-tags.use-case';
@@ -25,6 +27,7 @@ describe('DispatchRemindersUseCase', () => {
   let noteReader: InMemoryNoteReminderReader;
   let settingsRepo: InMemorySettingsRepository;
   let sentReminderRepo: InMemorySentReminderRepository;
+  let inAppNotificationRepo: InMemoryInAppNotificationRepository;
   let pushSubRepo: InMemoryPushSubscriptionRepository;
   let slotRepo: InMemoryTimetableSlotRepository;
   let sessionRepo: InMemoryClassSessionRepository;
@@ -163,6 +166,7 @@ describe('DispatchRemindersUseCase', () => {
     noteReader = new InMemoryNoteReminderReader();
     settingsRepo = new InMemorySettingsRepository();
     sentReminderRepo = new InMemorySentReminderRepository();
+    inAppNotificationRepo = new InMemoryInAppNotificationRepository();
     pushSubRepo = new InMemoryPushSubscriptionRepository();
     slotRepo = new InMemoryTimetableSlotRepository();
     sessionRepo = new InMemoryClassSessionRepository();
@@ -211,6 +215,7 @@ describe('DispatchRemindersUseCase', () => {
       undefined,
       undefined,
       noteReader,
+      inAppNotificationRepo,
     );
   });
 
@@ -391,7 +396,7 @@ describe('DispatchRemindersUseCase', () => {
         expect(fakePushSender.getSentMessages()).toHaveLength(0);
       });
 
-      it('không gửi khi teacher tắt pushEnabled (pushEnabled = false)', async () => {
+      it('không gửi Web Push nhưng vẫn tạo InAppNotification khi teacher tắt pushEnabled (pushEnabled = false)', async () => {
         const task = createTask();
         taskReader.addTask(task);
 
@@ -408,8 +413,10 @@ describe('DispatchRemindersUseCase', () => {
         await settingsRepo.save(disabledSettings);
 
         const result = await useCase.execute();
-        expect(result).toEqual({ sent: 0, skipped: 1 });
+        expect(result).toEqual({ sent: 1, skipped: 0 });
         expect(fakePushSender.getSentMessages()).toHaveLength(0);
+        expect(inAppNotificationRepo.getAll()).toHaveLength(1);
+        expect(inAppNotificationRepo.getAll()[0].type).toBe('task');
       });
     });
 
@@ -721,7 +728,7 @@ describe('DispatchRemindersUseCase', () => {
       });
     });
 
-    it('không gửi khi giáo viên tắt push (pushEnabled = false)', async () => {
+    it('không gửi Web Push nhưng vẫn tạo InAppNotification khi giáo viên tắt push (pushEnabled = false)', async () => {
       const slot = createSlot();
       await slotRepo.save(slot);
 
@@ -738,8 +745,10 @@ describe('DispatchRemindersUseCase', () => {
       await settingsRepo.save(disabledSettings);
 
       const result = await useCase.execute();
-      expect(result).toEqual({ sent: 0, skipped: 0 });
+      expect(result).toEqual({ sent: 1, skipped: 0 });
       expect(fakePushSender.getSentMessages()).toHaveLength(0);
+      expect(inAppNotificationRepo.getAll()).toHaveLength(1);
+      expect(inAppNotificationRepo.getAll()[0].type).toBe('class_session');
     });
 
     it('khối lượng trả lời nhanh: xử lý hàng chục slots và sessions trong thời gian ngắn', async () => {
@@ -1026,6 +1035,78 @@ describe('DispatchRemindersUseCase', () => {
 
       const result = await useCase.execute();
       expect(result).toEqual({ sent: 3, skipped: 0 });
+    });
+  });
+
+  describe('In-App Notifications & 30-day Cleanup (S6-BE-02)', () => {
+    it('luôn tạo InAppNotification và lưu SentReminder idempotent ngay cả khi giáo viên chưa có PushSubscription', async () => {
+      // Clear all push subscriptions -> teacher has no browser push registered
+      pushSubRepo.clear();
+
+      taskReader.addTask(createTask({ id: 'task-no-sub', title: 'Chấm bài' }));
+      noteReader.addNote(
+        createNote({
+          id: '77777777-7777-4777-8777-777777777777',
+          title: 'Ghi chú không push',
+          dueDate: '2026-10-27',
+          remindTime: '10:00',
+        }),
+      );
+      await slotRepo.save(createSlot());
+
+      const firstRun = await useCase.execute();
+      expect(firstRun).toEqual({ sent: 3, skipped: 0 });
+      expect(fakePushSender.getSentMessages()).toHaveLength(0);
+
+      const inAppItems = inAppNotificationRepo.getAll();
+      expect(inAppItems).toHaveLength(3);
+      expect(inAppItems.map((i) => i.type).sort()).toEqual(['class_session', 'note', 'task']);
+      expect(sentReminderRepo.getAll()).toHaveLength(3);
+
+      // Second run in the same 10m window must be idempotent
+      const secondRun = await useCase.execute();
+      expect(secondRun).toEqual({ sent: 0, skipped: 3 });
+      expect(inAppNotificationRepo.getAll()).toHaveLength(3);
+    });
+
+    it('dọn dẹp InAppNotification cũ quá 30 ngày trong bước housekeeping', async () => {
+      const oldCreatedAt = new Date(exactRemindTime.getTime() - 31 * 24 * 60 * 60 * 1000);
+      const recentCreatedAt = new Date(exactRemindTime.getTime() - 5 * 24 * 60 * 60 * 1000);
+
+      await inAppNotificationRepo.save(
+        InAppNotification.reconstitute({
+          id: 'old-notif',
+          accountId: teacherId,
+          type: 'task',
+          targetId: 't-old',
+          title: 'Old',
+          body: '10:00',
+          url: '/tasks',
+          data: null,
+          readAt: null,
+          createdAt: oldCreatedAt,
+        }),
+      );
+      await inAppNotificationRepo.save(
+        InAppNotification.reconstitute({
+          id: 'recent-notif',
+          accountId: teacherId,
+          type: 'task',
+          targetId: 't-recent',
+          title: 'Recent',
+          body: '10:00',
+          url: '/tasks',
+          data: null,
+          readAt: null,
+          createdAt: recentCreatedAt,
+        }),
+      );
+
+      await useCase.execute();
+
+      const remaining = inAppNotificationRepo.getAll();
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0].id).toBe('recent-notif');
     });
   });
 });
