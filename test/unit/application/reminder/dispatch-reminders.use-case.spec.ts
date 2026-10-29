@@ -19,6 +19,7 @@ import { TimetableSlot } from '../../../../src/domain/timetable/timetable-slot.e
 import { ClassSession } from '../../../../src/domain/class-session/class-session.entity';
 import { PurgeSoftDeletedTagsUseCase } from '../../../../src/application/tag/purge-soft-deleted-tags.use-case';
 import { PurgeSoftDeletedTasksUseCase } from '../../../../src/application/task/purge-soft-deleted-tasks.use-case';
+import { PurgeExpiredAiImagesUseCase } from '../../../../src/application/ai-assistant/purge-expired-ai-images.use-case';
 import { SendPushToTeacherUseCase } from '../../../../src/application/push-subscription/send-push-to-teacher.use-case';
 import { IdGenerator } from '../../../../src/application/shared/ports/id-generator.port';
 
@@ -891,6 +892,32 @@ describe('DispatchRemindersUseCase', () => {
       await useCaseWithPurgeTasks.execute();
 
       expect(mockPurgeTasksUseCase.execute).toHaveBeenCalledTimes(1);
+    });
+
+    it('gọi PurgeExpiredAiImagesUseCase nếu có', async () => {
+      const mockPurgeAiImagesUseCase = {
+        execute: jest.fn().mockResolvedValue({ purgedCount: 2 }),
+      } as unknown as PurgeExpiredAiImagesUseCase;
+
+      const useCaseWithPurgeAi = new DispatchRemindersUseCase(
+        taskReader,
+        settingsRepo,
+        sentReminderRepo,
+        sendPushUseCase,
+        clock,
+        idGenerator,
+        slotRepo,
+        sessionRepo,
+        undefined,
+        undefined,
+        noteReader,
+        inAppNotificationRepo,
+        mockPurgeAiImagesUseCase,
+      );
+
+      await useCaseWithPurgeAi.execute();
+
+      expect(mockPurgeAiImagesUseCase.execute).toHaveBeenCalledTimes(1);
     });
   });
 

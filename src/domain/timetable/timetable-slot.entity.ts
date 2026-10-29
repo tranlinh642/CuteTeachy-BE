@@ -209,6 +209,10 @@ export class TimetableSlot implements SyncableEntity {
     this._updatedAt = now;
   }
 
+  markDeleted(now: Date): void {
+    this.delete(now);
+  }
+
   update(props: UpdateTimetableSlotProps): void {
     const newWeekday = props.weekday ?? this._weekday;
     const newStartTime = props.startTime ?? this._startTime;

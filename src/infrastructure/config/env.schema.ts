@@ -52,6 +52,10 @@ export const envSchema = z.object({
     ),
   VAPID_PRIVATE_KEY: z.string().default('YVtjFEQG0EcRNl4s_8aX1gzcbNlnkLvnwSHzaC7LBfw'),
   VAPID_SUBJECT: z.string().default('mailto:dev@cuteteachy.local'),
+
+  // Google Gemini AI Assistant (SPEC-007)
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().optional(),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

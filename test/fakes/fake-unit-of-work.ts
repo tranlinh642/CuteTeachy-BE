@@ -7,6 +7,7 @@ import { FakeTaskRepository } from '../unit/application/task/fake-task.repositor
 import { FakeNoteRepository } from '../unit/application/note/fake-note.repository';
 import { InMemoryTimetableSlotRepository } from './in-memory-timetable-slot.repository';
 import { InMemoryClassSessionRepository } from './in-memory-class-session.repository';
+import { InMemoryAiChatMessageRepository } from './in-memory-ai-chat-message.repository';
 
 export class FakeUnitOfWork implements UnitOfWork {
   constructor(
@@ -16,6 +17,7 @@ export class FakeUnitOfWork implements UnitOfWork {
       noteRepo?: FakeNoteRepository;
       timetableSlotRepo?: InMemoryTimetableSlotRepository;
       classSessionRepo?: InMemoryClassSessionRepository;
+      aiChatMessageRepo?: InMemoryAiChatMessageRepository;
     },
   ) {}
 
@@ -25,6 +27,7 @@ export class FakeUnitOfWork implements UnitOfWork {
     const noteSnapshot = this.repos.noteRepo?.snapshot();
     const slotSnapshot = this.repos.timetableSlotRepo?.snapshot();
     const sessionSnapshot = this.repos.classSessionRepo?.snapshot();
+    const aiChatSnapshot = this.repos.aiChatMessageRepo?.snapshot();
 
     try {
       return await work(this.repos as TransactionalRepositories);
@@ -36,6 +39,8 @@ export class FakeUnitOfWork implements UnitOfWork {
         this.repos.timetableSlotRepo.restore(slotSnapshot);
       if (sessionSnapshot && this.repos.classSessionRepo)
         this.repos.classSessionRepo.restore(sessionSnapshot);
+      if (aiChatSnapshot && this.repos.aiChatMessageRepo)
+        this.repos.aiChatMessageRepo.restore(aiChatSnapshot);
       throw error;
     }
   }
