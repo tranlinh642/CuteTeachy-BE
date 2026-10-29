@@ -1,4 +1,7 @@
-import { calculateTeacherToday } from '../../../src/domain/settings/teacher-today.helper';
+import {
+  calculateTeacherDateWindow,
+  calculateTeacherToday,
+} from '../../../src/domain/settings/teacher-today.helper';
 import { FixedClock } from '../../fakes/fixed-clock';
 import { SettingsValidationError } from '../../../src/domain/settings/settings.errors';
 
@@ -94,6 +97,32 @@ describe("Teacher's Today Helper", () => {
       expect(teacherToday.year).toBe(2026);
       expect(teacherToday.month).toBe(10);
       expect(teacherToday.day).toBe(27);
+    });
+  });
+
+  describe('calculateTeacherDateWindow', () => {
+    it('returns [yesterday, today, tomorrow] in teacher timezone across month/year boundaries', () => {
+      const win = calculateTeacherDateWindow(
+        new Date('2026-10-26T17:00:00.000Z'), // 2026-10-27 00:00 in Asia/Ho_Chi_Minh
+        'Asia/Ho_Chi_Minh',
+      );
+      expect(win).toEqual({
+        yesterday: '2026-10-26',
+        today: '2026-10-27',
+        tomorrow: '2026-10-28',
+        dates: ['2026-10-26', '2026-10-27', '2026-10-28'],
+      });
+
+      const yearBoundaryWin = calculateTeacherDateWindow(
+        new Date('2026-12-31T23:50:00.000Z'), // 2027-01-01 06:50 in Asia/Ho_Chi_Minh
+        'Asia/Ho_Chi_Minh',
+      );
+      expect(yearBoundaryWin).toEqual({
+        yesterday: '2026-12-31',
+        today: '2027-01-01',
+        tomorrow: '2027-01-02',
+        dates: ['2026-12-31', '2027-01-01', '2027-01-02'],
+      });
     });
   });
 });

@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -18,6 +19,8 @@ import {
   ValidatorConstraintInterface,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+
+const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 @ValidatorConstraint({ name: 'isValidDueDate', async: false })
 export class IsValidDueDate implements ValidatorConstraintInterface {
@@ -98,6 +101,12 @@ export class CreateNoteRequestDto {
   dueDate?: string;
 
   @IsOptional()
+  @ValidateIf((_o, v) => v !== null && v !== '')
+  @IsString({ message: 'remindTime must be a string' })
+  @Matches(TIME_REGEX, { message: 'remindTime must be in HH:mm format' })
+  remindTime?: string | null;
+
+  @IsOptional()
   @IsBoolean({ message: 'completed must be a boolean' })
   completed?: boolean;
 }
@@ -138,6 +147,12 @@ export class UpdateNoteRequestDto {
   @ValidateIf((_o, v) => v !== null)
   @Validate(IsValidDueDate)
   dueDate?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null && v !== '')
+  @IsString({ message: 'remindTime must be a string' })
+  @Matches(TIME_REGEX, { message: 'remindTime must be in HH:mm format' })
+  remindTime?: string | null;
 
   @IsOptional()
   @IsBoolean({ message: 'completed must be a boolean' })

@@ -7,3 +7,9 @@ export class NoteValidationError extends DomainError {
     super(message);
   }
 }
+
+export class InvalidNoteRemindTimeError extends NoteValidationError {
+  constructor(message = 'Note remindTime must be in HH:mm format') {
+    super(message);
+  }
+}

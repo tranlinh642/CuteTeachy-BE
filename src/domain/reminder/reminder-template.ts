@@ -93,3 +93,45 @@ export function formatClassSessionReminderNotification(
     },
   };
 }
+
+export interface NoteReminderNotificationPayload {
+  title: string;
+  body: string;
+  url: string;
+  data: {
+    type: 'note';
+    id: string;
+    date: string;
+    url: string;
+    [key: string]: unknown;
+  };
+}
+
+export function formatNoteReminderNotification(
+  locale: string | undefined,
+  note: {
+    id: string;
+    title: string;
+    dueDate: string;
+    remindTime?: string | null;
+  },
+): NoteReminderNotificationPayload {
+  const isEn = locale === 'en';
+  const prefix = isEn ? 'Note reminder' : 'Nhắc nhở ghi chú';
+  const url = `/notes?noteId=${encodeURIComponent(note.id)}`;
+  const effectiveTime =
+    note.remindTime && note.remindTime.trim() !== '' ? note.remindTime.trim() : '07:00';
+  const normalizedDate = note.dueDate.slice(0, 10);
+
+  return {
+    title: `${prefix}: ${note.title}`,
+    body: effectiveTime,
+    url,
+    data: {
+      type: 'note',
+      id: note.id,
+      date: normalizedDate,
+      url,
+    },
+  };
+}

@@ -1,10 +1,11 @@
 import { SyncableEntity } from '../shared/sync-idempotency';
 import { ChecklistItem, validateChecklistItem } from './checklist-item.vo';
-import { NoteValidationError } from './note.errors';
+import { InvalidNoteRemindTimeError, NoteValidationError } from './note.errors';
 import { normalizeVietnamese } from './vietnamese-normalize';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 export interface CreateNoteProps {
   id: string;
@@ -15,6 +16,7 @@ export interface CreateNoteProps {
   imageUrl?: string | null;
   tagIds?: string[];
   dueDate?: string | null;
+  remindTime?: string | null;
   completed?: boolean;
   now: Date;
 }
@@ -28,6 +30,7 @@ export interface ReconstituteNoteProps {
   imageUrl: string | null;
   tagIds: string[];
   dueDate: string | null;
+  remindTime?: string | null;
   completed: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -41,6 +44,7 @@ export interface UpdateNoteProps {
   imageUrl?: string | null;
   tagIds?: string[];
   dueDate?: string | null;
+  remindTime?: string | null;
   completed?: boolean;
   now: Date;
 }
@@ -55,6 +59,7 @@ export class Note implements SyncableEntity {
     private _imageUrl: string | null,
     private _tagIds: string[],
     private _dueDate: string | null,
+    private _remindTime: string | null,
     private _completed: boolean,
     private readonly _createdAt: Date,
     private _updatedAt: Date,
@@ -69,6 +74,7 @@ export class Note implements SyncableEntity {
     const validChecklist = Note.validateChecklist(props.checklist);
     const validTagIds = Note.validateTagIds(props.tagIds);
     const validDueDate = Note.validateDueDate(props.dueDate);
+    const validRemindTime = Note.validateRemindTime(props.remindTime);
 
     let completed: boolean;
     if (validChecklist.length > 0) {
@@ -90,6 +96,7 @@ export class Note implements SyncableEntity {
       props.imageUrl ?? null,
       validTagIds,
       validDueDate,
+      validRemindTime,
       completed,
       props.now,
       props.now,
@@ -107,6 +114,7 @@ export class Note implements SyncableEntity {
       props.imageUrl,
       [...props.tagIds],
       props.dueDate,
+      props.remindTime ?? null,
       props.completed,
       props.createdAt,
       props.updatedAt,
@@ -133,6 +141,10 @@ export class Note implements SyncableEntity {
 
     if (props.dueDate !== undefined) {
       this._dueDate = Note.validateDueDate(props.dueDate);
+    }
+
+    if (props.remindTime !== undefined) {
+      this._remindTime = Note.validateRemindTime(props.remindTime);
     }
 
     if (props.checklist !== undefined) {
@@ -199,6 +211,10 @@ export class Note implements SyncableEntity {
 
   get dueDate(): string | null {
     return this._dueDate;
+  }
+
+  get remindTime(): string | null {
+    return this._remindTime;
   }
 
   get completed(): boolean {
@@ -310,5 +326,15 @@ export class Note implements SyncableEntity {
       throw new NoteValidationError('dueDate is not a valid date string');
     }
     return dueDate;
+  }
+
+  private static validateRemindTime(remindTime: unknown): string | null {
+    if (remindTime === undefined || remindTime === null || remindTime === '') {
+      return null;
+    }
+    if (typeof remindTime !== 'string' || !TIME_REGEX.test(remindTime)) {
+      throw new InvalidNoteRemindTimeError();
+    }
+    return remindTime;
   }
 }

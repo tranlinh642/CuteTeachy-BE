@@ -1,4 +1,4 @@
-export const REMINDER_TYPES = ['task', 'class_session'] as const;
+export const REMINDER_TYPES = ['task', 'class_session', 'note'] as const;
 export type ReminderType = (typeof REMINDER_TYPES)[number];
 
 export function isReminderType(value: unknown): value is ReminderType {

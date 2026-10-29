@@ -110,4 +110,24 @@ describe('UpdateNoteUseCase', () => {
       }),
     ).rejects.toThrow(NoteValidationError);
   });
+
+  it('updates remindTime and allows clearing it with null', async () => {
+    const withRemind = await useCase.execute({
+      id: validId,
+      accountId,
+      dueDate: '2026-10-28',
+      remindTime: '14:15',
+    });
+
+    expect(withRemind.dueDate).toBe('2026-10-28');
+    expect(withRemind.remindTime).toBe('14:15');
+
+    const cleared = await useCase.execute({
+      id: validId,
+      accountId,
+      remindTime: null,
+    });
+
+    expect(cleared.remindTime).toBeUndefined();
+  });
 });

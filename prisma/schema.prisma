@@ -242,6 +242,7 @@ model Note {
   checklist     Json      @default("[]")
   imageUrl      String?
   dueDate       String?
+  remindTime    String?
   completed     Boolean   @default(false)
   searchContent String    @default("")
   createdAt     DateTime  @default(now())

@@ -13,6 +13,7 @@ export interface UpdateNoteInput {
   checklist?: { id: string; text: string; done: boolean }[];
   tagIds?: string[];
   dueDate?: string | null;
+  remindTime?: string | null;
   completed?: boolean;
   imageUrl?: string | null;
 }
@@ -49,6 +50,7 @@ export class UpdateNoteUseCase {
       checklist: input.checklist,
       tagIds: input.tagIds,
       dueDate: input.dueDate,
+      remindTime: input.remindTime,
       completed: input.completed,
       imageUrl: input.imageUrl,
       now: this.clock.now(),

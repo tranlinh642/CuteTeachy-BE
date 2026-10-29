@@ -25,6 +25,10 @@ import {
   TaskReminderReader,
 } from '../application/reminder/ports/task-reminder.port';
 import {
+  NOTE_REMINDER_READER,
+  NoteReminderReader,
+} from '../application/reminder/ports/note-reminder.port';
+import {
   CRON_SECRET_VERIFIER,
   CronSecretVerifier,
 } from '../application/reminder/ports/cron-secret-verifier.port';
@@ -39,6 +43,7 @@ import {
 import { DispatchRemindersUseCase } from '../application/reminder/dispatch-reminders.use-case';
 import { PrismaSentReminderRepository } from '../infrastructure/persistence/prisma/repositories/prisma-sent-reminder.repository';
 import { PrismaTaskReminderReader } from '../infrastructure/persistence/prisma/repositories/prisma-task-reminder.repository';
+import { PrismaNoteReminderReader } from '../infrastructure/persistence/prisma/repositories/prisma-note-reminder.repository';
 import { DevReminderSchedulerService } from '../infrastructure/scheduler/dev-reminder-scheduler.service';
 import { APP_CONFIG, AppConfig } from '../infrastructure/config/app.config';
 import { ReminderController } from '../presentation/http/reminder/reminder.controller';
@@ -63,6 +68,10 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
     {
       provide: TASK_REMINDER_READER,
       useClass: PrismaTaskReminderReader,
+    },
+    {
+      provide: NOTE_REMINDER_READER,
+      useClass: PrismaNoteReminderReader,
     },
     {
       provide: CRON_SECRET_VERIFIER,
@@ -97,6 +106,7 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
         sessionRepo: ClassSessionRepository,
         purgeTagsUseCase: PurgeSoftDeletedTagsUseCase,
         purgeTasksUseCase: PurgeSoftDeletedTasksUseCase,
+        noteReader: NoteReminderReader,
       ) =>
         new DispatchRemindersUseCase(
           taskReader,
@@ -109,6 +119,7 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
           sessionRepo,
           purgeTagsUseCase,
           purgeTasksUseCase,
+          noteReader,
         ),
       inject: [
         TASK_REMINDER_READER,
@@ -121,12 +132,14 @@ import { CronSecretGuard } from '../presentation/http/reminder/guards/cron-secre
         CLASS_SESSION_REPOSITORY,
         PurgeSoftDeletedTagsUseCase,
         PurgeSoftDeletedTasksUseCase,
+        NOTE_REMINDER_READER,
       ],
     },
   ],
   exports: [
     SENT_REMINDER_REPOSITORY,
     TASK_REMINDER_READER,
+    NOTE_REMINDER_READER,
     CRON_SECRET_VERIFIER,
     DispatchRemindersUseCase,
   ],
