@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (S6-BE-01 — Mở rộng Note `remindTime` & Sửa lỗi biên nửa đêm)
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 - [ ] Tạo bảng `in_app_notifications` và module `notification` theo đúng Clean Architecture 4 layer.
 - [ ] Trong `DispatchRemindersUseCase`, mỗi khi có mục đến hạn chưa gửi trong cửa sổ 10 phút: luôn tạo bản ghi `InAppNotification` và lưu `SentReminder` idempotent; nếu `pushEnabled = true` thì gửi thêm Web Push; tự động dọn `InAppNotification` quá 30 ngày.

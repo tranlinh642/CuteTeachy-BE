@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Thêm cột tùy chọn `remindTime` (`HH:mm`) vào bảng `notes`, entity `Note`, DTO và mapper của Note.
-- [ ] Mở rộng `ReminderType` thêm `'note'` và định dạng nội dung thông báo cho Note theo `locale` (`vi`/`en`), điều hướng tới `/notes?noteId=<id>`.
-- [ ] Tính `remindAt` cho Note chưa hoàn thành và chưa xóa: nếu có `remindTime` thì lùi `reminderLeadMinutes`, nếu chỉ có `dueDate` thì nhắc lúc `07:00` sáng theo `timeZone` của giáo viên.
-- [ ] Quét ứng viên `ClassSession`, `Task`, `Note` trên dải 3 ngày `[yesterday, today, tomorrow]` theo `timeZone` của giáo viên để sửa lỗi biên qua nửa đêm (`00:00`).
-- [ ] Unit test với `Clock` giả và E2E test đầy đủ; `pnpm check-types`, `pnpm lint`, `pnpm test`, `pnpm test:e2e` xanh.
+- [x] Thêm cột tùy chọn `remindTime` (`HH:mm`) vào bảng `notes`, entity `Note`, DTO và mapper của Note.
+- [x] Mở rộng `ReminderType` thêm `'note'` và định dạng nội dung thông báo cho Note theo `locale` (`vi`/`en`), điều hướng tới `/notes?noteId=<id>`.
+- [x] Tính `remindAt` cho Note chưa hoàn thành và chưa xóa: nếu có `remindTime` thì lùi `reminderLeadMinutes`, nếu chỉ có `dueDate` thì nhắc lúc `07:00` sáng theo `timeZone` của giáo viên.
+- [x] Quét ứng viên `ClassSession`, `Task`, `Note` trên dải 3 ngày `[yesterday, today, tomorrow]` theo `timeZone` của giáo viên để sửa lỗi biên qua nửa đêm (`00:00`).
+- [x] Unit test với `Clock` giả và E2E test đầy đủ; `pnpm check-types`, `pnpm lint`, `pnpm test`, `pnpm test:e2e` xanh.
