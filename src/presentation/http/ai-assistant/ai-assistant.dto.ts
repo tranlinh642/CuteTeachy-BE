@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -33,6 +34,7 @@ export class ListAiChatMessagesQueryDto {
 export class SendAiMessageRequestDto {
   @IsOptional()
   @IsString()
+  @MaxLength(4000)
   message?: string;
 }
 

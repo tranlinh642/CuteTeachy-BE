@@ -95,6 +95,32 @@ describe('LoginUseCase', () => {
     ).rejects.toThrow(EmailNotVerifiedError);
   });
 
+  it('throws EmailNotVerifiedError even if account has multiple loginProviders when emailVerifiedAt=null', async () => {
+    const strictUseCase = new LoginUseCase(
+      accountRepo,
+      refreshTokenRepo,
+      passwordHasher,
+      tokenService,
+      rateLimiter,
+      idGenerator,
+      clock,
+      10,
+      60,
+      true,
+    );
+
+    const acc = await accountRepo.findByEmail('teacher@cute.com');
+    acc?.linkGoogle();
+
+    await expect(
+      strictUseCase.execute({
+        email: 'teacher@cute.com',
+        password: 'correctPassword123',
+        ip: '127.0.0.1',
+      }),
+    ).rejects.toThrow(EmailNotVerifiedError);
+  });
+
   it('allows login when emailVerificationRequired=true and emailVerifiedAt is set', async () => {
     const strictUseCase = new LoginUseCase(
       accountRepo,

@@ -52,6 +52,8 @@ describe('AppConfig', () => {
       FE_URL: 'https://cuteteachy.app',
       DATABASE_URL: 'postgresql://user:pass@supabase:6543/db?pgbouncer=true',
       DIRECT_URL: 'postgresql://user:pass@supabase:5432/db',
+      JWT_SECRET: 'prod-jwt-secret-key-at-least-32-characters-long',
+      CRON_SECRET: 'prod-cron-secret-token-strong',
       S3_ENDPOINT: 'https://account-id.r2.cloudflarestorage.com',
       S3_REGION: 'auto',
       S3_ACCESS_KEY_ID: 'r2-token-id',
@@ -77,6 +79,8 @@ describe('AppConfig', () => {
       FE_URL: 'https://cuteteachy.app',
       DATABASE_URL: 'postgresql://user:pass@supabase:6543/db?pgbouncer=true',
       DIRECT_URL: 'postgresql://user:pass@supabase:5432/db',
+      JWT_SECRET: 'prod-jwt-secret-key-at-least-32-characters-long',
+      CRON_SECRET: 'prod-cron-secret-token-strong',
       SMTP_HOST: 'smtp.gmail.com',
       SMTP_PORT: '465',
       SMTP_SECURE: 'true',
@@ -95,6 +99,20 @@ describe('AppConfig', () => {
     expect(config.SMTP_PASS).toBe('secret-app-password');
     expect(config.MAIL_FROM).toBe('CuteTeachy <noreply@cuteteachy.com>');
     expect(config.EMAIL_VERIFICATION_REQUIRED).toBe(true);
+  });
+
+  it('rejects default dev JWT_SECRET or CRON_SECRET when NODE_ENV is production (BE-05)', () => {
+    const rawEnv = {
+      PORT: '4000',
+      NODE_ENV: 'production',
+      FE_URL: 'https://cuteteachy.app',
+      DATABASE_URL: 'postgresql://user:pass@supabase:6543/db?pgbouncer=true',
+      DIRECT_URL: 'postgresql://user:pass@supabase:5432/db',
+    };
+
+    expect(() => loadConfig(rawEnv)).toThrowError(
+      /Environment configuration validation failed:[\s\S]*JWT_SECRET[\s\S]*CRON_SECRET/,
+    );
   });
 
   it('fails fast and reports missing required variables when required env vars are missing', () => {

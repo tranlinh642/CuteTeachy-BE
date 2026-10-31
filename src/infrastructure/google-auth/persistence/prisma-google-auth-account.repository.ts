@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { GoogleAuthAccountRepository } from '../../../application/google-auth/ports/google-auth-account.repository.port';
+import {
+  GoogleAuthAccountRepository,
+  LinkGoogleProviderOptions,
+} from '../../../application/google-auth/ports/google-auth-account.repository.port';
 import { Account } from '../../../domain/account/account.entity';
 import { PrismaService } from '../../persistence/prisma/prisma.service';
 import { AccountMapper } from '../../persistence/prisma/mappers/account.mapper';
@@ -101,7 +104,59 @@ export class PrismaGoogleAuthAccountRepository implements GoogleAuthAccountRepos
     });
   }
 
-  async linkGoogleProvider(accountId: string, subject: string): Promise<void> {
+  async linkGoogleProvider(
+    accountId: string,
+    subject: string,
+    options?: LinkGoogleProviderOptions,
+  ): Promise<void> {
+    if (options?.verifyEmailAndClearPasswordAt) {
+      const now = options.verifyEmailAndClearPasswordAt;
+      await this.prisma.$transaction(async (tx) => {
+        await tx.account.update({
+          where: { id: accountId },
+          data: {
+            emailVerifiedAt: now,
+            updatedAt: now,
+          },
+        });
+
+        await tx.loginProvider.deleteMany({
+          where: {
+            accountId,
+            provider: 'password',
+          },
+        });
+
+        await tx.loginProvider.upsert({
+          where: {
+            accountId_provider: {
+              accountId,
+              provider: 'google',
+            },
+          },
+          update: {
+            subject,
+          },
+          create: {
+            accountId,
+            provider: 'google',
+            subject,
+          },
+        });
+
+        await tx.refreshToken.updateMany({
+          where: {
+            accountId,
+            revokedAt: null,
+          },
+          data: {
+            revokedAt: now,
+          },
+        });
+      });
+      return;
+    }
+
     await this.prisma.loginProvider.upsert({
       where: {
         accountId_provider: {

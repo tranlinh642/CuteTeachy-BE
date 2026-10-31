@@ -23,6 +23,12 @@ function collectValidationErrors(errors: ValidationError[]): string[] {
 export function setupApp(app: INestApplication): void {
   const config = app.get<AppConfig>(APP_CONFIG);
 
+  const httpAdapter = app.getHttpAdapter?.();
+  const instance = httpAdapter?.getInstance?.();
+  if (instance && typeof instance.set === 'function') {
+    instance.set('trust proxy', 1);
+  }
+
   app.enableCors({
     origin: config.FE_URL,
     credentials: true,

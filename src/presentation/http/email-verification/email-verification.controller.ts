@@ -4,21 +4,11 @@ import { VerifyEmailUseCase } from '../../../application/email-verification/veri
 import { ResendVerificationEmailUseCase } from '../../../application/email-verification/resend-verification-email.use-case';
 import { AuthSessionDto } from '../../../application/account/account.dto';
 import { Public } from '../auth/public.decorator';
+import { getClientIp } from '../shared/client-ip.helper';
 import {
   ResendVerificationEmailRequestDto,
   VerifyEmailRequestDto,
 } from './email-verification.dto';
-
-function getClientIp(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') {
-    return forwarded.split(',')[0].trim();
-  }
-  if (Array.isArray(forwarded) && forwarded.length > 0) {
-    return forwarded[0].trim();
-  }
-  return req.ip || req.socket?.remoteAddress || '127.0.0.1';
-}
 
 @Controller('auth/email')
 export class EmailVerificationController {

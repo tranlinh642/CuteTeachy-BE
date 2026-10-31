@@ -258,6 +258,26 @@ describe('AI Assistant Use Cases (Seam 3)', () => {
         }),
       ).rejects.toThrow(AiAssistantValidationError);
     });
+
+    it('deletes uploaded S3 image if AI reply generation throws (BE-08)', async () => {
+      jest.spyOn(aiPort, 'generateReply').mockRejectedValueOnce(new Error('Gemini failure'));
+
+      await expect(
+        sendAiMessageUseCase.execute({
+          accountId: teacherId,
+          message: 'Test cleanup',
+          image: {
+            buffer: validJpeg,
+            size: validJpeg.length,
+            mimeType: 'image/jpeg',
+          },
+        }),
+      ).rejects.toThrow('Gemini failure');
+
+      expect(storage.putCalls).toHaveLength(1);
+      expect(storage.deleteCalls).toHaveLength(1);
+      expect(storage.deleteCalls[0].key).toBe(storage.putCalls[0].key);
+    });
   });
 
   describe('ApplyAiScheduleDraftUseCase', () => {

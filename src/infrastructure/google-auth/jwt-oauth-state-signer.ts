@@ -26,7 +26,7 @@ export class JwtOAuthStateSigner implements OAuthStateSigner {
     return jwt.sign(
       { remember: payload.remember, nonce: payload.nonce },
       this.secret,
-      { expiresIn: this.expiresIn as any },
+      { algorithm: 'HS256', expiresIn: this.expiresIn as any },
     );
   }
 
@@ -35,7 +35,9 @@ export class JwtOAuthStateSigner implements OAuthStateSigner {
       return null;
     }
     try {
-      const decoded = jwt.verify(token, this.secret) as {
+      const decoded = jwt.verify(token, this.secret, {
+        algorithms: ['HS256'],
+      }) as {
         remember?: boolean;
         nonce?: string;
       };

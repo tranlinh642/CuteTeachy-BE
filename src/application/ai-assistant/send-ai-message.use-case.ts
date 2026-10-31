@@ -93,144 +93,155 @@ export class SendAiMessageUseCase {
       };
     }
 
-    const settings = await this.settingsReader.getSettings(input.accountId);
-    const timeZone = settings?.timeZone ?? 'Asia/Ho_Chi_Minh';
-    const locale = settings?.locale ?? 'vi';
-    const today = calculateTeacherToday(now, timeZone).dateString;
-    const weekday = getWeekdayFromIsoDate(today);
+    try {
+      const settings = await this.settingsReader.getSettings(input.accountId);
+      const timeZone = settings?.timeZone ?? 'Asia/Ho_Chi_Minh';
+      const locale = settings?.locale ?? 'vi';
+      const today = calculateTeacherToday(now, timeZone).dateString;
+      const weekday = getWeekdayFromIsoDate(today);
 
-    const { windowFrom, windowTo } = computeContextDateWindow(today, trimmedMessage);
+      const { windowFrom, windowTo } = computeContextDateWindow(today, trimmedMessage);
 
-    const [activeSlots, dbSessions, tasksRes, notesRes, recentHistory] = await Promise.all([
-      this.timetableSlotRepo.findActiveByAccount(input.accountId),
-      this.classSessionRepo.findByAccountAndDateRange(input.accountId, windowFrom, windowTo),
-      this.taskRepo.findByAccountAndDateRange(input.accountId, windowFrom, windowTo),
-      this.noteRepo.findByAccount(input.accountId, { limit: 100 }),
-      this.chatMessageRepo.findByAccount(input.accountId, 10),
-    ]);
+      const [activeSlots, dbSessions, tasksRes, notesRes, recentHistory] = await Promise.all([
+        this.timetableSlotRepo.findActiveByAccount(input.accountId),
+        this.classSessionRepo.findByAccountAndDateRange(input.accountId, windowFrom, windowTo),
+        this.taskRepo.findByAccountAndDateRange(input.accountId, windowFrom, windowTo),
+        this.noteRepo.findByAccount(input.accountId, { limit: 100 }),
+        this.chatMessageRepo.findByAccount(input.accountId, 10),
+      ]);
 
-    const classSessionsContext = resolveEffectiveClassSessions(
-      activeSlots,
-      dbSessions,
-      windowFrom,
-      windowTo,
-    ).map((s) => ({
-      id: s.id,
-      date: s.date,
-      startTime: s.startTime,
-      endTime: s.endTime,
-      subject: s.subject,
-      grade: s.grade ?? null,
-      room: s.room ?? null,
-      category: s.category,
-      topic: s.topic ?? null,
-      cancelled: s.cancelled,
-      isAdHoc: s.isAdHoc,
-    }));
-
-    const aiReply = await this.aiAssistant.generateReply({
-      message: trimmedMessage || undefined,
-      image: imagePayloadForAi,
-      history: recentHistory.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
-      context: {
-        today,
-        weekday,
-        timeZone,
-        locale,
+      const classSessionsContext = resolveEffectiveClassSessions(
+        activeSlots,
+        dbSessions,
         windowFrom,
         windowTo,
-        standardPeriodTimes: STANDARD_PERIOD_TIMES,
-        timetableSlots: activeSlots.map((slot) => ({
-          id: slot.id,
-          weekday: slot.weekday,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          subject: slot.subject,
-          grade: slot.grade,
-          room: slot.room,
-          category: slot.category,
-          effectiveFrom: slot.effectiveFrom,
-          effectiveTo: slot.effectiveTo,
-        })),
-        classSessions: classSessionsContext,
-        tasks: tasksRes.items
-          .filter((t) => !t.isDeleted())
-          .map((t) => ({
-            id: t.id,
-            title: t.title,
-            date: t.date,
-            time: t.time,
-            category: t.category,
-            priority: t.priority,
-            completed: t.completed,
-            notes: t.notes,
-          })),
-        notes: notesRes.items
-          .filter((n) => !n.isDeleted())
-          .map((n) => ({
-            id: n.id,
-            title: n.title,
-            content: n.content,
-            dueDate: n.dueDate,
-            remindTime: n.remindTime,
-            completed: n.completed,
-          })),
-      },
-    });
+      ).map((s) => ({
+        id: s.id,
+        date: s.date,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        subject: s.subject,
+        grade: s.grade ?? null,
+        room: s.room ?? null,
+        category: s.category,
+        topic: s.topic ?? null,
+        cancelled: s.cancelled,
+        isAdHoc: s.isAdHoc,
+      }));
 
-    let draft: AiScheduleDraft | null = null;
-    if (aiReply.draftItems && aiReply.draftItems.length > 0) {
-      const processedItems = enrichDraftItemsWithConflicts(aiReply.draftItems, {
-        today,
-        activeSlots,
-        generateId: () => this.idGenerator.next(),
+      const aiReply = await this.aiAssistant.generateReply({
+        message: trimmedMessage || undefined,
+        image: imagePayloadForAi,
+        history: recentHistory.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+        context: {
+          today,
+          weekday,
+          timeZone,
+          locale,
+          windowFrom,
+          windowTo,
+          standardPeriodTimes: STANDARD_PERIOD_TIMES,
+          timetableSlots: activeSlots.map((slot) => ({
+            id: slot.id,
+            weekday: slot.weekday,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            subject: slot.subject,
+            grade: slot.grade,
+            room: slot.room,
+            category: slot.category,
+            effectiveFrom: slot.effectiveFrom,
+            effectiveTo: slot.effectiveTo,
+          })),
+          classSessions: classSessionsContext,
+          tasks: tasksRes.items
+            .filter((t) => !t.isDeleted())
+            .map((t) => ({
+              id: t.id,
+              title: t.title,
+              date: t.date,
+              time: t.time,
+              category: t.category,
+              priority: t.priority,
+              completed: t.completed,
+              notes: t.notes,
+            })),
+          notes: notesRes.items
+            .filter((n) => !n.isDeleted())
+            .map((n) => ({
+              id: n.id,
+              title: n.title,
+              content: n.content,
+              dueDate: n.dueDate,
+              remindTime: n.remindTime,
+              completed: n.completed,
+            })),
+        },
       });
 
-      draft = {
-        status: 'pending',
-        appliedAt: null,
-        conflictStrategy: null,
-        summary: null,
-        items: processedItems,
+      let draft: AiScheduleDraft | null = null;
+      if (aiReply.draftItems && aiReply.draftItems.length > 0) {
+        const processedItems = enrichDraftItemsWithConflicts(aiReply.draftItems, {
+          today,
+          activeSlots,
+          generateId: () => this.idGenerator.next(),
+        });
+
+        draft = {
+          status: 'pending',
+          appliedAt: null,
+          conflictStrategy: null,
+          summary: null,
+          items: processedItems,
+        };
+      }
+
+      const userMessage = AiChatMessage.create({
+        id: this.idGenerator.next(),
+        accountId: input.accountId,
+        role: 'user',
+        content:
+          trimmedMessage ||
+          (locale === 'en' ? '[Uploaded timetable image]' : '[Ảnh thời khóa biểu đính kèm]'),
+        imageUrl,
+        imageKey,
+        imageExpiresAt,
+        draft: null,
+        now,
+      });
+
+      const assistantCreatedAt = new Date(now.getTime() + 1);
+      const assistantMessage = AiChatMessage.create({
+        id: this.idGenerator.next(),
+        accountId: input.accountId,
+        role: 'assistant',
+        content: aiReply.reply,
+        imageUrl: null,
+        imageKey: null,
+        imageExpiresAt: null,
+        draft,
+        now: assistantCreatedAt,
+      });
+
+      await this.chatMessageRepo.save(userMessage);
+      await this.chatMessageRepo.save(assistantMessage);
+
+      return {
+        userMessage: toAiChatMessageDto(userMessage),
+        assistantMessage: toAiChatMessageDto(assistantMessage),
       };
+    } catch (err) {
+      if (imageKey) {
+        try {
+          await this.storage.deleteObject(this.bucket, imageKey);
+        } catch {
+          // Ignore cleanup errors and rethrow original error
+        }
+      }
+      throw err;
     }
-
-    const userMessage = AiChatMessage.create({
-      id: this.idGenerator.next(),
-      accountId: input.accountId,
-      role: 'user',
-      content:
-        trimmedMessage ||
-        (locale === 'en' ? '[Uploaded timetable image]' : '[Ảnh thời khóa biểu đính kèm]'),
-      imageUrl,
-      imageKey,
-      imageExpiresAt,
-      draft: null,
-      now,
-    });
-
-    const assistantCreatedAt = new Date(now.getTime() + 1);
-    const assistantMessage = AiChatMessage.create({
-      id: this.idGenerator.next(),
-      accountId: input.accountId,
-      role: 'assistant',
-      content: aiReply.reply,
-      imageUrl: null,
-      imageKey: null,
-      imageExpiresAt: null,
-      draft,
-      now: assistantCreatedAt,
-    });
-
-    await this.chatMessageRepo.save(userMessage);
-    await this.chatMessageRepo.save(assistantMessage);
-
-    return {
-      userMessage: toAiChatMessageDto(userMessage),
-      assistantMessage: toAiChatMessageDto(assistantMessage),
-    };
   }
 }

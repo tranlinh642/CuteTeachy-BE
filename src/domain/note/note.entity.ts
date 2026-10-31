@@ -308,16 +308,21 @@ export class Note implements SyncableEntity {
       throw new NoteValidationError('dueDate must be a string');
     }
 
+    if (!/^\d{4}-\d{2}-\d{2}/.test(dueDate)) {
+      throw new NoteValidationError('dueDate must start with YYYY-MM-DD');
+    }
+
+    const [y, m, d] = dueDate.slice(0, 10).split('-').map(Number);
+    const dateObj = new Date(Date.UTC(y, m - 1, d));
+    if (
+      dateObj.getUTCFullYear() !== y ||
+      dateObj.getUTCMonth() !== m - 1 ||
+      dateObj.getUTCDate() !== d
+    ) {
+      throw new NoteValidationError('dueDate is not a valid calendar date');
+    }
+
     if (DATE_REGEX.test(dueDate)) {
-      const [y, m, d] = dueDate.split('-').map(Number);
-      const dateObj = new Date(Date.UTC(y, m - 1, d));
-      if (
-        dateObj.getUTCFullYear() !== y ||
-        dateObj.getUTCMonth() !== m - 1 ||
-        dateObj.getUTCDate() !== d
-      ) {
-        throw new NoteValidationError('dueDate is not a valid calendar date');
-      }
       return dueDate;
     }
 

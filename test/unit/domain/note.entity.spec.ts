@@ -209,6 +209,16 @@ describe('Note Entity', () => {
           now,
         }),
       ).toThrow(NoteValidationError);
+
+      expect(() =>
+        Note.create({
+          id: validId,
+          accountId: validAccountId,
+          title: 'Tiêu đề',
+          dueDate: '12/31/2026',
+          now,
+        }),
+      ).toThrow(NoteValidationError);
     });
 
     it('accepts valid HH:mm remindTime (00:00 to 23:59) and normalizes empty/null to null', () => {

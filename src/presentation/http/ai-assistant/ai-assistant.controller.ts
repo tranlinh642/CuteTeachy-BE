@@ -22,6 +22,7 @@ import { ApplyAiScheduleDraftUseCase } from '../../../application/ai-assistant/a
 import { ClearAiChatHistoryUseCase } from '../../../application/ai-assistant/clear-ai-chat-history.use-case';
 import { ListAiChatMessagesUseCase } from '../../../application/ai-assistant/list-ai-chat-messages.use-case';
 import { SendAiMessageUseCase } from '../../../application/ai-assistant/send-ai-message.use-case';
+import { MAX_AI_IMAGE_SIZE_BYTES } from '../../../domain/ai-assistant/ai-image.validator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import {
   ApplyAiScheduleDraftRequestDto,
@@ -52,7 +53,11 @@ export class AiAssistantController {
 
   @Post('messages')
   @HttpCode(HttpStatus.OK)
-  @UseInterceptors(FileInterceptor('image'))
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: { fileSize: MAX_AI_IMAGE_SIZE_BYTES, files: 1 },
+    }),
+  )
   async sendMessage(
     @CurrentUser() user: AccessTokenPayload,
     @Body() dto: SendAiMessageRequestDto | undefined,
