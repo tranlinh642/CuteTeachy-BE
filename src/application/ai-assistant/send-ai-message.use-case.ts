@@ -8,6 +8,10 @@ import {
   AI_IMAGE_RETENTION_MS,
   validateAiChatImage,
 } from '../../domain/ai-assistant/ai-image.validator';
+import {
+  buildCrossAccountRefusalReply,
+  detectCrossAccountOrInjectionAttempt,
+} from '../../domain/ai-assistant/ai-guardrails';
 import { AiScheduleDraft } from '../../domain/ai-assistant/ai-schedule-draft.vo';
 import { STANDARD_PERIOD_TIMES } from '../../domain/ai-assistant/standard-period-times';
 import {
@@ -61,6 +65,43 @@ export class SendAiMessageUseCase {
     }
 
     const now = this.clock.now();
+
+    if (trimmedMessage && detectCrossAccountOrInjectionAttempt(trimmedMessage)) {
+      const settings = await this.settingsReader.getSettings(input.accountId);
+      const locale = settings?.locale ?? 'vi';
+
+      const userMessage = AiChatMessage.create({
+        id: this.idGenerator.next(),
+        accountId: input.accountId,
+        role: 'user',
+        content: trimmedMessage,
+        imageUrl: null,
+        imageKey: null,
+        imageExpiresAt: null,
+        draft: null,
+        now,
+      });
+
+      const assistantMessage = AiChatMessage.create({
+        id: this.idGenerator.next(),
+        accountId: input.accountId,
+        role: 'assistant',
+        content: buildCrossAccountRefusalReply(locale),
+        imageUrl: null,
+        imageKey: null,
+        imageExpiresAt: null,
+        draft: null,
+        now: new Date(now.getTime() + 1),
+      });
+
+      await this.chatMessageRepo.save(userMessage);
+      await this.chatMessageRepo.save(assistantMessage);
+
+      return {
+        userMessage: toAiChatMessageDto(userMessage),
+        assistantMessage: toAiChatMessageDto(assistantMessage),
+      };
+    }
 
     let imageUrl: string | null = null;
     let imageKey: string | null = null;
@@ -137,6 +178,7 @@ export class SendAiMessageUseCase {
           content: m.content,
         })),
         context: {
+          accountId: input.accountId,
           today,
           weekday,
           timeZone,

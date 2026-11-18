@@ -43,7 +43,6 @@ export function planSlotModification(input: ModifySlotInput): SlotModificationRe
   const { slot, today, yesterday, newSlotId, now, updates } = input;
 
   if (slot.hasPastSessions(today)) {
-    // Slot has past sessions (effectiveFrom < today) -> SPLIT
     if (slot.effectiveTo !== null && slot.effectiveTo < today) {
       if (!updates.effectiveTo || updates.effectiveTo < today) {
         throw new TimetableValidationError(

@@ -52,6 +52,7 @@ export interface AiAssistantNoteContext {
 }
 
 export interface AiAssistantContext {
+  accountId?: string;
   today: string;
   weekday: number;
   timeZone: string;

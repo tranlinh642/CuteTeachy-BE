@@ -29,6 +29,7 @@ export const envSchema = z
     REFRESH_TOKEN_TTL_SESSION: z.string().default('1d'),
     EMAIL_VERIFICATION_REQUIRED: booleanEnv(false),
     CRON_SECRET: z.string().default(DEV_DEFAULT_CRON_SECRET),
+    INTERNAL_PROXY_SECRET: z.string().optional(),
 
     // S3 / MinIO Object Storage
     S3_ENDPOINT: z.string().default('http://localhost:9000'),

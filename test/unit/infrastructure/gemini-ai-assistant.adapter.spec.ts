@@ -99,6 +99,11 @@ describe('GeminiAiAssistantAdapter & AiChatMessageMapper', () => {
     const body = JSON.parse(String(init?.body));
     expect(body.generationConfig.responseMimeType).toBe('application/json');
     expect(body.generationConfig.responseSchema).toBeDefined();
+    const sysInstruction = body.systemInstruction?.parts?.[0]?.text ?? '';
+    expect(sysInstruction).toContain('LLM GUARDRAILS');
+    expect(sysInstruction).toContain('Phân quyền & Cô lập dữ liệu');
+    expect(sysInstruction).toContain('Giới hạn phạm vi nghiệp vụ');
+    expect(sysInstruction).toContain('Anti-Prompt Injection');
 
     expect(output.reply).toContain('07:00-07:45');
     expect(output.draftItems).toHaveLength(1);

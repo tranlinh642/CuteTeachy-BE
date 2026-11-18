@@ -154,7 +154,6 @@ export class DispatchRemindersUseCase {
       return computed;
     };
 
-    // Compute global [fromDate, toDate] bounding window across all teacher timezones
     let globalFromDate = new Date(now.getTime() - 36 * 60 * 60 * 1000).toISOString().slice(0, 10);
     let globalToDate = new Date(now.getTime() + 38 * 60 * 60 * 1000).toISOString().slice(0, 10);
     for (const s of teacherSettingsList) {
@@ -167,17 +166,14 @@ export class DispatchRemindersUseCase {
       }
     }
 
-    // 3A. Process candidate tasks across [yesterday, today, tomorrow]
     const tasks = await this.taskReader.findUpcomingTasks(globalFromDate, globalToDate);
 
     for (const task of tasks) {
-      // Condition: task has time, not completed, not deleted
       if (!task.time || task.completed || task.deletedAt !== null) {
         skippedCount++;
         continue;
       }
 
-      // Teacher settings check
       const settings = await getTeacherSettings(task.accountId);
       if (!settings || (!settings.pushEnabled && !this.inAppNotificationRepo)) {
         skippedCount++;
