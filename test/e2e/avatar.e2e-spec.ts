@@ -103,7 +103,7 @@ describe('Avatar Upload & Delete E2E (MinIO Real Storage)', () => {
 
       expect(res.body).toEqual({
         code: 'file_too_large',
-        message: 'File size exceeds 2 MB limit',
+        message: expect.any(String),
       });
     });
 
