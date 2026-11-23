@@ -73,11 +73,20 @@ export class HandleGoogleCallbackUseCase {
       );
 
       if (existingAccount) {
-        await this.googleAuthAccountRepository.linkGoogleProvider(
-          existingAccount.id,
-          userInfo.sub,
-        );
-        existingAccount.linkGoogle();
+        if (existingAccount.emailVerifiedAt === null) {
+          await this.googleAuthAccountRepository.linkGoogleProvider(
+            existingAccount.id,
+            userInfo.sub,
+            { verifyEmailAndClearPasswordAt: now },
+          );
+          existingAccount.claimUnverifiedWithGoogle(now);
+        } else if (!existingAccount.hasLoginProvider('google')) {
+          await this.googleAuthAccountRepository.linkGoogleProvider(
+            existingAccount.id,
+            userInfo.sub,
+          );
+          existingAccount.linkGoogle();
+        }
         account = existingAccount;
       } else {
         // 3. Create new Account via Google

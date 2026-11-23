@@ -1,6 +1,7 @@
 import {
   formatTaskReminderNotification,
   formatClassSessionReminderNotification,
+  formatNoteReminderNotification,
 } from '../../../src/domain/reminder/reminder-template';
 
 describe('Reminder Template', () => {
@@ -168,6 +169,152 @@ describe('Reminder Template', () => {
       const payload = formatClassSessionReminderNotification('de', sessionWithAll);
       expect(payload.title).toBe('Tiết dạy: Toán học 10A');
       expect(payload.body).toBe('Bắt đầu lúc 07:30 tại P.302');
+    });
+
+    it('formats prefix by ScheduleCategory (school_teaching, extra_teaching, self_study) in vi and en', () => {
+      expect(
+        formatClassSessionReminderNotification('vi', {
+          ...sessionWithAll,
+          category: 'school_teaching',
+        }).title,
+      ).toBe('Tiết dạy: Toán học 10A');
+
+      expect(
+        formatClassSessionReminderNotification('en', {
+          ...sessionWithAll,
+          subject: 'Math',
+          category: 'school_teaching',
+        }).title,
+      ).toBe('Class session: Math 10A');
+
+      expect(
+        formatClassSessionReminderNotification('vi', {
+          ...sessionWithAll,
+          subject: 'Toán bồi dưỡng',
+          grade: '9A',
+          category: 'extra_teaching',
+        }).title,
+      ).toBe('Ca dạy thêm: Toán bồi dưỡng 9A');
+
+      expect(
+        formatClassSessionReminderNotification('en', {
+          ...sessionWithAll,
+          subject: 'Math Tutoring',
+          grade: '9A',
+          category: 'extra_teaching',
+        }).title,
+      ).toBe('Extra tutoring: Math Tutoring 9A');
+
+      expect(
+        formatClassSessionReminderNotification('vi', {
+          id: 'session-study',
+          date: '2026-10-27',
+          startTime: '19:00',
+          subject: 'IELTS Writing',
+          category: 'self_study',
+        }).title,
+      ).toBe('Lịch học: IELTS Writing');
+
+      expect(
+        formatClassSessionReminderNotification('en', {
+          id: 'session-study',
+          date: '2026-10-27',
+          startTime: '19:00',
+          subject: 'IELTS Writing',
+          category: 'self_study',
+        }).title,
+      ).toBe('Study session: IELTS Writing');
+    });
+  });
+
+  describe('Note Reminder Template (S6-BE-01)', () => {
+    const note = {
+      id: 'note-123',
+      title: 'Nộp điểm giữa kỳ I',
+      dueDate: '2026-10-27',
+      remindTime: '14:30',
+    };
+
+    it('formats note notification in Vietnamese (vi) and links to /notes?noteId=<id>', () => {
+      const payload = formatNoteReminderNotification('vi', note);
+
+      expect(payload).toEqual({
+        title: 'Nhắc nhở ghi chú: Nộp điểm giữa kỳ I',
+        body: '14:30',
+        url: '/notes?noteId=note-123',
+        data: {
+          type: 'note',
+          id: 'note-123',
+          date: '2026-10-27',
+          url: '/notes?noteId=note-123',
+        },
+      });
+    });
+
+    it('formats note notification in English (en) and defaults body to 07:00 when remindTime is null', () => {
+      const payload = formatNoteReminderNotification('en', {
+        id: 'note-123',
+        title: 'Submit midterm grades',
+        dueDate: '2026-10-27',
+        remindTime: null,
+      });
+
+      expect(payload).toEqual({
+        title: 'Note reminder: Submit midterm grades',
+        body: '07:00',
+        url: '/notes?noteId=note-123',
+        data: {
+          type: 'note',
+          id: 'note-123',
+          date: '2026-10-27',
+          url: '/notes?noteId=note-123',
+        },
+      });
+    });
+
+    it('includes tag "${type}-${targetId}-${remindAtMs}" and data.remindAt ISO string when remindAt is provided across task, class_session, and note', () => {
+      const remindAt = new Date('2026-10-27T02:45:00.000Z');
+      const remindAtMs = remindAt.getTime();
+      const remindAtIso = remindAt.toISOString();
+
+      const taskPayload = formatTaskReminderNotification(
+        'vi',
+        {
+          id: 'task-abc',
+          title: 'Soạn giáo án',
+          time: '10:00',
+          date: '2026-10-27',
+        },
+        remindAt,
+      );
+      expect(taskPayload.tag).toBe(`task-task-abc-${remindAtMs}`);
+      expect(taskPayload.data.remindAt).toBe(remindAtIso);
+
+      const sessionPayload = formatClassSessionReminderNotification(
+        'vi',
+        {
+          id: 'slot-1:2026-10-27',
+          date: '2026-10-27',
+          startTime: '10:00',
+          subject: 'Toán',
+        },
+        remindAt,
+      );
+      expect(sessionPayload.tag).toBe(`class_session-slot-1:2026-10-27-${remindAtMs}`);
+      expect(sessionPayload.data.remindAt).toBe(remindAtIso);
+
+      const notePayload = formatNoteReminderNotification(
+        'vi',
+        {
+          id: 'note-123',
+          title: 'Ghi chú',
+          dueDate: '2026-10-27',
+          remindTime: '10:00',
+        },
+        remindAt,
+      );
+      expect(notePayload.tag).toBe(`note-note-123-${remindAtMs}`);
+      expect(notePayload.data.remindAt).toBe(remindAtIso);
     });
   });
 });

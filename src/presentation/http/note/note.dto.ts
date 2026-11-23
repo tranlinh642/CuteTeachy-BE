@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -19,23 +20,28 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
+const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
 @ValidatorConstraint({ name: 'isValidDueDate', async: false })
 export class IsValidDueDate implements ValidatorConstraintInterface {
   validate(value: unknown): boolean {
     if (value === undefined || value === null || value === '') {
       return true;
     }
-    if (typeof value !== 'string') {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(value)) {
+      return false;
+    }
+    const [y, m, d] = value.slice(0, 10).split('-').map(Number);
+    const date = new Date(Date.UTC(y, m - 1, d));
+    if (
+      date.getUTCFullYear() !== y ||
+      date.getUTCMonth() !== m - 1 ||
+      date.getUTCDate() !== d
+    ) {
       return false;
     }
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      const [y, m, d] = value.split('-').map(Number);
-      const date = new Date(Date.UTC(y, m - 1, d));
-      return (
-        date.getUTCFullYear() === y &&
-        date.getUTCMonth() === m - 1 &&
-        date.getUTCDate() === d
-      );
+      return true;
     }
     const parsed = new Date(value);
     return !isNaN(parsed.getTime());
@@ -98,6 +104,12 @@ export class CreateNoteRequestDto {
   dueDate?: string;
 
   @IsOptional()
+  @ValidateIf((_o, v) => v !== null && v !== '')
+  @IsString({ message: 'remindTime must be a string' })
+  @Matches(TIME_REGEX, { message: 'remindTime must be in HH:mm format' })
+  remindTime?: string | null;
+
+  @IsOptional()
   @IsBoolean({ message: 'completed must be a boolean' })
   completed?: boolean;
 }
@@ -138,6 +150,12 @@ export class UpdateNoteRequestDto {
   @ValidateIf((_o, v) => v !== null)
   @Validate(IsValidDueDate)
   dueDate?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null && v !== '')
+  @IsString({ message: 'remindTime must be a string' })
+  @Matches(TIME_REGEX, { message: 'remindTime must be in HH:mm format' })
+  remindTime?: string | null;
 
   @IsOptional()
   @IsBoolean({ message: 'completed must be a boolean' })

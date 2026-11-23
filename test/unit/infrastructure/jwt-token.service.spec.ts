@@ -1,3 +1,4 @@
+import * as jwt from 'jsonwebtoken';
 import { JwtTokenService } from '../../../src/infrastructure/auth/jwt-token.service';
 import { AppConfig } from '../../../src/infrastructure/config/app.config';
 import { UnauthorizedError } from '../../../src/domain/account/account.errors';
@@ -48,6 +49,15 @@ describe('JwtTokenService', () => {
     await expect(service.verifyAccessToken('invalid.token.here')).rejects.toThrow(
       UnauthorizedError,
     );
+  });
+
+  it('rejects OAuth state tokens even if signed with the same secret (BE-10)', async () => {
+    const oauthStateToken = jwt.sign(
+      { sub: 'user-123', codeVerifier: 'verifier', redirectUri: 'http://localhost:3000/cb' },
+      mockConfig.JWT_SECRET,
+      { algorithm: 'HS256', expiresIn: '10m' },
+    );
+    await expect(service.verifyAccessToken(oauthStateToken)).rejects.toThrow(UnauthorizedError);
   });
 
   it('generates refresh token with appropriate TTL based on remember flag', async () => {

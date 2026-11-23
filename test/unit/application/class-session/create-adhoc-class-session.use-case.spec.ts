@@ -45,12 +45,23 @@ describe('CreateAdHocClassSessionUseCase', () => {
     expect(result.session.id).toBe(baseInput.id);
     expect(result.session.timetableSlotId).toBeNull();
     expect(result.session.subject).toBe(baseInput.subject);
+    expect(result.session.category).toBe('school_teaching');
     expect(result.session.prepItems).toHaveLength(1);
     expect(result.session.cancelled).toBe(false);
 
     const saved = await sessionRepo.findById(baseInput.id);
     expect(saved).not.toBeNull();
     expect(saved!.isAdHoc()).toBe(true);
+  });
+
+  it('creates an ad-hoc session with explicit category (extra_teaching / self_study)', async () => {
+    const result = await useCase.execute({
+      ...baseInput,
+      category: 'self_study',
+    });
+
+    expect(result.created).toBe(true);
+    expect(result.session.category).toBe('self_study');
   });
 
   it('returns existing session with created: false when payload matches identically (idempotent)', async () => {

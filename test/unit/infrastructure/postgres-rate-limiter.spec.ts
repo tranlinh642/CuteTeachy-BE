@@ -2,23 +2,28 @@ import { PostgresRateLimiter } from '../../../src/infrastructure/auth/postgres-r
 import { PrismaService } from '../../../src/infrastructure/persistence/prisma/prisma.service';
 
 describe('PostgresRateLimiter', () => {
-  let prisma: PrismaService;
+  let prisma: { $queryRaw: jest.Mock };
   let rateLimiter: PostgresRateLimiter;
+  let counters: Map<string, { count: number; expiresAt: Date }>;
 
-  beforeAll(async () => {
-    prisma = new PrismaService();
-    await prisma.$connect();
-    rateLimiter = new PostgresRateLimiter(prisma);
-  }, 30000);
-
-  afterAll(async () => {
-    if (prisma) {
-      await prisma.rateLimitCounter.deleteMany({
-        where: { key: { startsWith: 'test-limiter:' } },
-      });
-      await prisma.$disconnect();
-    }
-  }, 30000);
+  beforeEach(() => {
+    counters = new Map();
+    prisma = {
+      $queryRaw: jest.fn().mockImplementation(
+        async (_strings: TemplateStringsArray, key: string, expiresAt: Date, now: Date) => {
+          const existing = counters.get(key);
+          if (!existing || existing.expiresAt <= now) {
+            const entry = { count: 1, expiresAt };
+            counters.set(key, entry);
+            return [entry];
+          }
+          existing.count += 1;
+          return [existing];
+        },
+      ),
+    };
+    rateLimiter = new PostgresRateLimiter(prisma as unknown as PrismaService);
+  });
 
   it('allows requests within limit and tracks remaining points', async () => {
     const key = `test-limiter:${Date.now()}`;

@@ -56,6 +56,42 @@ describe('TimetableSlot Entity', () => {
       expect(slot.grade).toBeNull();
       expect(slot.room).toBeNull();
       expect(slot.effectiveTo).toBeNull();
+      expect(slot.category).toBe('school_teaching');
+    });
+
+    it('creates a valid slot with each ScheduleCategory (school_teaching, extra_teaching, self_study) and defaults to school_teaching', () => {
+      for (const category of ['school_teaching', 'extra_teaching', 'self_study'] as const) {
+        const slot = TimetableSlot.create({
+          id: validId,
+          accountId,
+          weekday: 1,
+          startTime: '07:30',
+          endTime: '08:15',
+          subject: 'Toán',
+          tone: 'blue',
+          category,
+          effectiveFrom: '2026-10-01',
+          now,
+        });
+        expect(slot.category).toBe(category);
+      }
+    });
+
+    it('rejects invalid category', () => {
+      expect(() =>
+        TimetableSlot.create({
+          id: validId,
+          accountId,
+          weekday: 1,
+          startTime: '07:30',
+          endTime: '08:15',
+          subject: 'Sinh học',
+          tone: 'blue',
+          category: 'invalid_category' as any,
+          effectiveFrom: '2026-10-01',
+          now,
+        }),
+      ).toThrow(TimetableValidationError);
     });
 
     it('trims subject, grade, room and converts empty strings to null', () => {

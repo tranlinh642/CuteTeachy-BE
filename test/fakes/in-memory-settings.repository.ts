@@ -43,6 +43,21 @@ export class InMemorySettingsRepository implements SettingsRepository, TeacherSe
       );
   }
 
+  async findAllTeachers(): Promise<Settings[]> {
+    return Array.from(this.store.values()).map((existing) =>
+      Settings.reconstitute({
+        id: existing.id,
+        accountId: existing.accountId,
+        locale: existing.locale,
+        timeZone: existing.timeZone,
+        pushEnabled: existing.pushEnabled,
+        reminderLeadMinutes: existing.reminderLeadMinutes,
+        createdAt: existing.createdAt,
+        updatedAt: existing.updatedAt,
+      }),
+    );
+  }
+
   async save(settings: Settings): Promise<void> {
     const clone = Settings.reconstitute({
       id: settings.id,

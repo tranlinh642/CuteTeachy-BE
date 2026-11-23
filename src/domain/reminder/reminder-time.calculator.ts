@@ -81,3 +81,21 @@ export function calculateClassSessionRemindAt(
 ): Date {
   return calculateTaskRemindAt(dateStr, startTimeStr, timeZone, leadMinutes);
 }
+
+export function calculateNoteRemindAt(
+  dueDateStr: string,
+  remindTimeStr: string | null | undefined,
+  timeZone: string,
+  leadMinutes: number,
+): Date {
+  if (!dueDateStr || typeof dueDateStr !== 'string') {
+    throw new ReminderValidationError(`Invalid dueDate: ${dueDateStr}`);
+  }
+  const normalizedDate = dueDateStr.slice(0, 10);
+
+  if (remindTimeStr && remindTimeStr.trim() !== '') {
+    return calculateTaskRemindAt(normalizedDate, remindTimeStr.trim(), timeZone, leadMinutes);
+  }
+
+  return parseZonedTimeToUtc(normalizedDate, '07:00', timeZone);
+}

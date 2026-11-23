@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { TaskReminderReader } from '../../../../application/reminder/ports/task-reminder.port';
+import {
+  TaskReminderQuery,
+  TaskReminderReader,
+} from '../../../../application/reminder/ports/task-reminder.port';
 import { Task } from '../../../../domain/task/task.entity';
 import { TaskMapper } from '../mappers/task.mapper';
 
@@ -8,11 +11,17 @@ import { TaskMapper } from '../mappers/task.mapper';
 export class PrismaTaskReminderReader implements TaskReminderReader {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findUpcomingTasks(): Promise<Task[]> {
-    const now = new Date();
-    // Allow for teacher time zones across UTC-12 to UTC+14
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  async findUpcomingTasks(
+    fromDateOrQuery: string | TaskReminderQuery,
+    toDate?: string,
+  ): Promise<Task[]> {
+    const query =
+      typeof fromDateOrQuery === 'string'
+        ? { fromDate: fromDateOrQuery, toDate: toDate ?? fromDateOrQuery }
+        : fromDateOrQuery;
+
+    const effectiveFrom = query.fromDate ?? query.date;
+    const effectiveTo = query.toDate ?? query.date ?? effectiveFrom;
 
     const rawTasks = await this.prisma.task.findMany({
       where: {
@@ -21,20 +30,16 @@ export class PrismaTaskReminderReader implements TaskReminderReader {
         time: {
           not: null,
         },
-        date: {
-          gte: yesterday,
-          lte: tomorrow,
-        },
-        account: {
-          settings: {
-            pushEnabled: true,
-          },
-        },
+        ...(effectiveFrom || effectiveTo
+          ? {
+              date: {
+                ...(effectiveFrom ? { gte: effectiveFrom } : {}),
+                ...(effectiveTo ? { lte: effectiveTo } : {}),
+              },
+            }
+          : {}),
       },
-      orderBy: [
-        { date: 'asc' },
-        { time: 'asc' },
-      ],
+      orderBy: [{ date: 'asc' }, { time: 'asc' }],
       include: {
         tags: true,
       },

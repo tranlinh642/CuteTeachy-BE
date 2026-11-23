@@ -62,7 +62,7 @@ describe('ResetPasswordUseCase', () => {
     );
   });
 
-  it('resets password, updates hash, revokes all refresh tokens, and marks code as used', async () => {
+  it('resets password, updates hash, marks email verified if unverified, revokes all refresh tokens, and marks code as used', async () => {
     await verificationCodeRepo.create({
       id: 'vc-1',
       email: 'teacher@cute.com',
@@ -83,6 +83,10 @@ describe('ResetPasswordUseCase', () => {
     // Verify password updated
     const newHash = await accountRepo.getPasswordHash('acc-1');
     expect(newHash).toBe('hashed_newStrongPassword8');
+
+    // Verify email marked verified (BE-06)
+    const updatedAccount = await accountRepo.findById('acc-1');
+    expect(updatedAccount?.emailVerifiedAt).toEqual(clock.now());
 
     // Verify all refresh tokens revoked
     const token = await refreshTokenRepo.findByTokenHash('token_hash_1');

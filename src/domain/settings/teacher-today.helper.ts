@@ -53,3 +53,32 @@ export function calculateTeacherToday(date: Date, timeZone: string): TeacherToda
     dayOfYear,
   };
 }
+
+export interface TeacherDateWindow {
+  yesterday: string;
+  today: string;
+  tomorrow: string;
+  dates: [string, string, string];
+}
+
+export function calculateTeacherDateWindow(date: Date, timeZone: string): TeacherDateWindow {
+  const todayInfo = calculateTeacherToday(date, timeZone);
+  const yesterday = new Date(
+    Date.UTC(todayInfo.year, todayInfo.month - 1, todayInfo.day - 1),
+  )
+    .toISOString()
+    .slice(0, 10);
+  const today = todayInfo.dateString;
+  const tomorrow = new Date(
+    Date.UTC(todayInfo.year, todayInfo.month - 1, todayInfo.day + 1),
+  )
+    .toISOString()
+    .slice(0, 10);
+
+  return {
+    yesterday,
+    today,
+    tomorrow,
+    dates: [yesterday, today, tomorrow],
+  };
+}

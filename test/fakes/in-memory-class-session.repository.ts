@@ -54,6 +54,7 @@ export class InMemoryClassSessionRepository implements ClassSessionRepository {
           grade: session.grade,
           room: session.room,
           tone: session.tone,
+          category: session.category,
           topic: session.topic,
           prepItems: session.prepItems,
           cancelled: session.cancelled,

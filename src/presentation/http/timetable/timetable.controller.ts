@@ -54,6 +54,7 @@ export class TimetableController {
       grade: dto.grade,
       room: dto.room,
       tone: dto.tone,
+      category: dto.category,
       effectiveFrom: dto.effectiveFrom,
       effectiveTo: dto.effectiveTo,
     });
@@ -96,6 +97,7 @@ export class TimetableController {
       grade: dto.grade,
       room: dto.room,
       tone: dto.tone,
+      category: dto.category,
       effectiveFrom: dto.effectiveFrom,
       effectiveTo: dto.effectiveTo,
     });

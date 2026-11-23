@@ -24,6 +24,20 @@ describe('SentReminder Entity', () => {
       expect(reminder.accountId).toBe('acc-456');
     });
 
+    it('creates a valid SentReminder entity with type note', () => {
+      const reminder = SentReminder.create({
+        id: 'sent-note-1',
+        type: 'note',
+        targetId: 'note-123',
+        remindAt,
+        accountId: 'acc-456',
+        now,
+      });
+
+      expect(reminder.type).toBe('note');
+      expect(reminder.targetId).toBe('note-123');
+    });
+
     it('rejects empty id', () => {
       expect(() =>
         SentReminder.create({
@@ -107,6 +121,20 @@ describe('SentReminder Entity', () => {
       expect(reminder.remindAt).toEqual(remindAt);
       expect(reminder.sentAt).toEqual(now);
       expect(reminder.accountId).toBe('acc-456');
+    });
+
+    it('creates a valid SentReminder entity with type note', () => {
+      const reminder = SentReminder.create({
+        id: 'sent-note-1',
+        type: 'note',
+        targetId: 'note-123',
+        remindAt,
+        accountId: 'acc-456',
+        now,
+      });
+
+      expect(reminder.type).toBe('note');
+      expect(reminder.targetId).toBe('note-123');
     });
   });
 });

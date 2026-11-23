@@ -5,6 +5,7 @@ import {
   enumerateDates,
   generateClassSessions,
   getWeekdayFromIsoDate,
+  partitionClassSessions,
 } from '../../domain/class-session/class-session-generator';
 import type { Clock } from '../shared/ports/clock.port';
 import type { TimetableSlotRepository } from '../timetable/ports/timetable-slot.repository.port';
@@ -53,16 +54,7 @@ export class ListClassSessionsUseCase {
       range.to,
     );
 
-    const overrides = new Map<string, ClassSession>();
-    const activeAdHocs: ClassSession[] = [];
-
-    for (const session of dbSessions) {
-      if (session.isOverride()) {
-        overrides.set(session.id, session);
-      } else if (session.isAdHoc() && !session.isDeleted()) {
-        activeAdHocs.push(session);
-      }
-    }
+    const { overrides, activeAdHocs } = partitionClassSessions(dbSessions);
 
     const items: ClassSessionDto[] = generatedSessions.map((session) => {
       const override = overrides.get(session.id);
@@ -72,6 +64,7 @@ export class ListClassSessionsUseCase {
 
       return {
         ...session,
+        category: override.category ?? session.category,
         topic: override.topic !== null ? override.topic : undefined,
         prepItems: override.prepItems.map((p) => ({
           id: p.id,
@@ -185,6 +178,7 @@ export class ListClassSessionsUseCase {
               endTime: slot.endTime,
               subject: slot.subject,
               tone: slot.tone,
+              category: session.category ?? slot.category,
               prepItems: session.prepItems.map((p) => ({
                 id: p.id,
                 label: p.label,
@@ -264,6 +258,7 @@ export class ListClassSessionsUseCase {
 
       return {
         ...session,
+        category: override.category ?? session.category,
         topic: override.topic !== null ? override.topic : undefined,
         prepItems: override.prepItems.map((p) => ({
           id: p.id,

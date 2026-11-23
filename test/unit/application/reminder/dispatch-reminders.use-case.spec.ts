@@ -1,27 +1,34 @@
 import { DispatchRemindersUseCase } from '../../../../src/application/reminder/dispatch-reminders.use-case';
 import { InMemoryTaskReminderReader } from '../../../fakes/in-memory-task-reminder.reader';
+import { InMemoryNoteReminderReader } from '../../../fakes/in-memory-note-reminder.reader';
 import { InMemorySettingsRepository } from '../../../fakes/in-memory-settings.repository';
 import { InMemorySentReminderRepository } from '../../../fakes/in-memory-sent-reminder.repository';
+import { InMemoryInAppNotificationRepository } from '../../../fakes/in-memory-in-app-notification.repository';
 import { InMemoryPushSubscriptionRepository } from '../../../fakes/in-memory-push-subscription.repository';
 import { InMemoryTimetableSlotRepository } from '../../../fakes/in-memory-timetable-slot.repository';
 import { InMemoryClassSessionRepository } from '../../../fakes/in-memory-class-session.repository';
 import { FakePushSender } from '../../../fakes/fake-push-sender';
 import { FixedClock } from '../../../fakes/fixed-clock';
 import { Task } from '../../../../src/domain/task/task.entity';
+import { Note } from '../../../../src/domain/note/note.entity';
 import { Settings } from '../../../../src/domain/settings/settings.entity';
 import { PushSubscription } from '../../../../src/domain/push-subscription/push-subscription.entity';
 import { SentReminder } from '../../../../src/domain/reminder/sent-reminder.entity';
+import { InAppNotification } from '../../../../src/domain/notification/in-app-notification.entity';
 import { TimetableSlot } from '../../../../src/domain/timetable/timetable-slot.entity';
 import { ClassSession } from '../../../../src/domain/class-session/class-session.entity';
 import { PurgeSoftDeletedTagsUseCase } from '../../../../src/application/tag/purge-soft-deleted-tags.use-case';
 import { PurgeSoftDeletedTasksUseCase } from '../../../../src/application/task/purge-soft-deleted-tasks.use-case';
+import { PurgeExpiredAiImagesUseCase } from '../../../../src/application/ai-assistant/purge-expired-ai-images.use-case';
 import { SendPushToTeacherUseCase } from '../../../../src/application/push-subscription/send-push-to-teacher.use-case';
 import { IdGenerator } from '../../../../src/application/shared/ports/id-generator.port';
 
 describe('DispatchRemindersUseCase', () => {
   let taskReader: InMemoryTaskReminderReader;
+  let noteReader: InMemoryNoteReminderReader;
   let settingsRepo: InMemorySettingsRepository;
   let sentReminderRepo: InMemorySentReminderRepository;
+  let inAppNotificationRepo: InMemoryInAppNotificationRepository;
   let pushSubRepo: InMemoryPushSubscriptionRepository;
   let slotRepo: InMemoryTimetableSlotRepository;
   let sessionRepo: InMemoryClassSessionRepository;
@@ -129,10 +136,38 @@ describe('DispatchRemindersUseCase', () => {
     return session;
   }
 
+  function createNote(props?: {
+    id?: string;
+    accountId?: string;
+    title?: string;
+    dueDate?: string | null;
+    remindTime?: string | null;
+    completed?: boolean;
+    deletedAt?: Date | null;
+  }): Note {
+    return Note.reconstitute({
+      id: props?.id ?? '11111111-1111-4111-8111-111111111111',
+      accountId: props?.accountId ?? teacherId,
+      title: props?.title ?? 'Nộp sổ đầu bài',
+      content: null,
+      checklist: [],
+      imageUrl: null,
+      tagIds: [],
+      dueDate: props?.dueDate !== undefined ? props.dueDate : '2026-10-27',
+      remindTime: props?.remindTime !== undefined ? props.remindTime : '10:00',
+      completed: props?.completed ?? false,
+      createdAt: new Date('2026-10-26T00:00:00.000Z'),
+      updatedAt: new Date('2026-10-26T00:00:00.000Z'),
+      deletedAt: props?.deletedAt ?? null,
+    });
+  }
+
   beforeEach(async () => {
     taskReader = new InMemoryTaskReminderReader();
+    noteReader = new InMemoryNoteReminderReader();
     settingsRepo = new InMemorySettingsRepository();
     sentReminderRepo = new InMemorySentReminderRepository();
+    inAppNotificationRepo = new InMemoryInAppNotificationRepository();
     pushSubRepo = new InMemoryPushSubscriptionRepository();
     slotRepo = new InMemoryTimetableSlotRepository();
     sessionRepo = new InMemoryClassSessionRepository();
@@ -178,6 +213,10 @@ describe('DispatchRemindersUseCase', () => {
       idGenerator,
       slotRepo,
       sessionRepo,
+      undefined,
+      undefined,
+      noteReader,
+      inAppNotificationRepo,
     );
   });
 
@@ -358,7 +397,7 @@ describe('DispatchRemindersUseCase', () => {
         expect(fakePushSender.getSentMessages()).toHaveLength(0);
       });
 
-      it('không gửi khi teacher tắt pushEnabled (pushEnabled = false)', async () => {
+      it('không gửi Web Push nhưng vẫn tạo InAppNotification khi teacher tắt pushEnabled (pushEnabled = false)', async () => {
         const task = createTask();
         taskReader.addTask(task);
 
@@ -375,8 +414,10 @@ describe('DispatchRemindersUseCase', () => {
         await settingsRepo.save(disabledSettings);
 
         const result = await useCase.execute();
-        expect(result).toEqual({ sent: 0, skipped: 1 });
+        expect(result).toEqual({ sent: 1, skipped: 0 });
         expect(fakePushSender.getSentMessages()).toHaveLength(0);
+        expect(inAppNotificationRepo.getAll()).toHaveLength(1);
+        expect(inAppNotificationRepo.getAll()[0].type).toBe('task');
       });
     });
 
@@ -391,11 +432,13 @@ describe('DispatchRemindersUseCase', () => {
           title: 'Nhắc nhở công việc: Họp tổ bộ môn',
           body: '10:00',
           url: '/tasks?date=2026-10-27',
+          tag: `task-task-1-${exactRemindTime.getTime()}`,
           data: {
             type: 'task',
             id: 'task-1',
             date: '2026-10-27',
             url: '/tasks?date=2026-10-27',
+            remindAt: exactRemindTime.toISOString(),
           },
         });
       });
@@ -422,11 +465,13 @@ describe('DispatchRemindersUseCase', () => {
           title: 'Task reminder: Department meeting',
           body: '10:00',
           url: '/tasks?date=2026-10-27',
+          tag: `task-task-1-${exactRemindTime.getTime()}`,
           data: {
             type: 'task',
             id: 'task-1',
             date: '2026-10-27',
             url: '/tasks?date=2026-10-27',
+            remindAt: exactRemindTime.toISOString(),
           },
         });
       });
@@ -447,11 +492,13 @@ describe('DispatchRemindersUseCase', () => {
         title: 'Tiết dạy: Sinh học 10A',
         body: 'Bắt đầu lúc 10:00 tại Phòng 302',
         url: '/timetable?date=2026-10-27',
+        tag: `class_session-00000000-0000-4000-8000-000000000001:2026-10-27-${exactRemindTime.getTime()}`,
         data: {
           type: 'class_session',
           id: '00000000-0000-4000-8000-000000000001:2026-10-27',
           date: '2026-10-27',
           url: '/timetable?date=2026-10-27',
+          remindAt: exactRemindTime.toISOString(),
         },
       });
 
@@ -475,11 +522,13 @@ describe('DispatchRemindersUseCase', () => {
         title: 'Tiết dạy: Dạy bù Vật lý 11B',
         body: 'Bắt đầu lúc 10:00 tại Phòng 101',
         url: '/timetable?date=2026-10-27',
+        tag: `class_session-00000000-0000-4000-8000-000000000002-${exactRemindTime.getTime()}`,
         data: {
           type: 'class_session',
           id: '00000000-0000-4000-8000-000000000002',
           date: '2026-10-27',
           url: '/timetable?date=2026-10-27',
+          remindAt: exactRemindTime.toISOString(),
         },
       });
 
@@ -679,16 +728,18 @@ describe('DispatchRemindersUseCase', () => {
         title: 'Class session: Biology 10A',
         body: 'Starts at 10:00 in Room 302',
         url: '/timetable?date=2026-10-27',
+        tag: `class_session-00000000-0000-4000-8000-000000000001:2026-10-27-${exactRemindTime.getTime()}`,
         data: {
           type: 'class_session',
           id: '00000000-0000-4000-8000-000000000001:2026-10-27',
           date: '2026-10-27',
           url: '/timetable?date=2026-10-27',
+          remindAt: exactRemindTime.toISOString(),
         },
       });
     });
 
-    it('không gửi khi giáo viên tắt push (pushEnabled = false)', async () => {
+    it('không gửi Web Push nhưng vẫn tạo InAppNotification khi giáo viên tắt push (pushEnabled = false)', async () => {
       const slot = createSlot();
       await slotRepo.save(slot);
 
@@ -705,8 +756,47 @@ describe('DispatchRemindersUseCase', () => {
       await settingsRepo.save(disabledSettings);
 
       const result = await useCase.execute();
-      expect(result).toEqual({ sent: 0, skipped: 0 });
+      expect(result).toEqual({ sent: 1, skipped: 0 });
       expect(fakePushSender.getSentMessages()).toHaveLength(0);
+      expect(inAppNotificationRepo.getAll()).toHaveLength(1);
+      expect(inAppNotificationRepo.getAll()[0].type).toBe('class_session');
+    });
+
+    it('hiển thị đúng tiền tố theo category (school_teaching, extra_teaching, self_study) cho cả buổi sinh từ slot và buổi lẻ', async () => {
+      const extraSlot = TimetableSlot.create({
+        id: '11111111-1111-4000-8000-000000000001',
+        accountId: teacherId,
+        weekday: 2,
+        startTime: '10:00',
+        endTime: '11:30',
+        subject: 'Toán bồi dưỡng',
+        grade: '9A',
+        tone: 'lavender',
+        category: 'extra_teaching',
+        effectiveFrom: '2026-10-01',
+        now: exactRemindTime,
+      });
+      await slotRepo.save(extraSlot);
+
+      const studyAdHoc = ClassSession.createAdHoc({
+        id: '22222222-2222-4000-8000-000000000002',
+        accountId: teacherId,
+        date: '2026-10-27',
+        startTime: '10:00',
+        endTime: '11:30',
+        subject: 'IELTS Speaking',
+        tone: 'mint',
+        category: 'self_study',
+        now: exactRemindTime,
+      });
+      await sessionRepo.save(studyAdHoc);
+
+      const result = await useCase.execute();
+      expect(result.sent).toBe(2);
+
+      const titles = fakePushSender.getSentMessages().map((m) => m.payload.title);
+      expect(titles).toContain('Ca dạy thêm: Toán bồi dưỡng 9A');
+      expect(titles).toContain('Lịch học: IELTS Speaking');
     });
 
     it('khối lượng trả lời nhanh: xử lý hàng chục slots và sessions trong thời gian ngắn', async () => {
@@ -812,6 +902,287 @@ describe('DispatchRemindersUseCase', () => {
       await useCaseWithPurgeTasks.execute();
 
       expect(mockPurgeTasksUseCase.execute).toHaveBeenCalledTimes(1);
+    });
+
+    it('gọi PurgeExpiredAiImagesUseCase nếu có', async () => {
+      const mockPurgeAiImagesUseCase = {
+        execute: jest.fn().mockResolvedValue({ purgedCount: 2 }),
+      } as unknown as PurgeExpiredAiImagesUseCase;
+
+      const useCaseWithPurgeAi = new DispatchRemindersUseCase(
+        taskReader,
+        settingsRepo,
+        sentReminderRepo,
+        sendPushUseCase,
+        clock,
+        idGenerator,
+        slotRepo,
+        sessionRepo,
+        undefined,
+        undefined,
+        noteReader,
+        inAppNotificationRepo,
+        mockPurgeAiImagesUseCase,
+      );
+
+      await useCaseWithPurgeAi.execute();
+
+      expect(mockPurgeAiImagesUseCase.execute).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Note Reminders (S6-BE-01)', () => {
+    it('nhắc Note có dueDate + remindTime tại dueDate + remindTime - reminderLeadMinutes và điều hướng tới /notes?noteId=<id>', async () => {
+      const note = createNote({
+        id: '11111111-1111-4111-8111-111111111111',
+        title: 'Nộp bảng điểm giữa kỳ',
+        dueDate: '2026-10-27',
+        remindTime: '10:00',
+      });
+      noteReader.addNote(note);
+
+      const result = await useCase.execute();
+
+      expect(result).toEqual({ sent: 1, skipped: 0 });
+      expect(fakePushSender.getSentMessages()).toHaveLength(1);
+      expect(fakePushSender.getSentMessages()[0].payload).toEqual({
+        title: 'Nhắc nhở ghi chú: Nộp bảng điểm giữa kỳ',
+        body: '10:00',
+        url: '/notes?noteId=11111111-1111-4111-8111-111111111111',
+        tag: `note-11111111-1111-4111-8111-111111111111-${exactRemindTime.getTime()}`,
+        data: {
+          type: 'note',
+          id: '11111111-1111-4111-8111-111111111111',
+          date: '2026-10-27',
+          url: '/notes?noteId=11111111-1111-4111-8111-111111111111',
+          remindAt: exactRemindTime.toISOString(),
+        },
+      });
+
+      const sentRecords = sentReminderRepo.getAll();
+      expect(sentRecords).toHaveLength(1);
+      expect(sentRecords[0].type).toBe('note');
+      expect(sentRecords[0].targetId).toBe('11111111-1111-4111-8111-111111111111');
+      expect(sentRecords[0].remindAt).toEqual(exactRemindTime);
+    });
+
+    it('nhắc Note chỉ có dueDate (remindTime = null) đúng lúc 07:00 sáng theo timeZone giáo viên (không trừ reminderLeadMinutes)', async () => {
+      const note = createNote({
+        id: '22222222-2222-4222-8222-222222222222',
+        title: 'Họp phụ huynh đầu năm',
+        dueDate: '2026-10-27',
+        remindTime: null,
+      });
+      noteReader.addNote(note);
+
+      // 2026-10-27 07:00 Asia/Ho_Chi_Minh (UTC+7) -> 2026-10-27T00:00:00.000Z
+      // At 06:45 local (2026-10-26T23:45:00.000Z), should NOT fire (because leadMinutes is NOT subtracted for 07:00 default)
+      clock.set(new Date('2026-10-26T23:45:00.000Z'));
+      const earlyResult = await useCase.execute();
+      expect(earlyResult).toEqual({ sent: 0, skipped: 1 });
+      expect(fakePushSender.getSentMessages()).toHaveLength(0);
+
+      // At 07:00 local (2026-10-27T00:00:00.000Z), should fire!
+      clock.set(new Date('2026-10-27T00:00:00.000Z'));
+      const onTimeResult = await useCase.execute();
+      expect(onTimeResult).toEqual({ sent: 1, skipped: 0 });
+      expect(fakePushSender.getSentMessages()).toHaveLength(1);
+      expect(fakePushSender.getSentMessages()[0].payload.body).toBe('07:00');
+    });
+
+    it('bỏ qua Note đã completed = true, đã xóa mềm hoặc không có dueDate', async () => {
+      noteReader.addNote(
+        createNote({ id: '11111111-1111-4111-8111-111111111111', completed: true }),
+      );
+      noteReader.addNote(
+        createNote({ id: '22222222-2222-4222-8222-222222222222', deletedAt: exactRemindTime }),
+      );
+      noteReader.addNote(
+        createNote({ id: '33333333-3333-4333-8333-333333333333', dueDate: null }),
+      );
+
+      const result = await useCase.execute();
+      expect(result).toEqual({ sent: 0, skipped: 3 });
+      expect(fakePushSender.getSentMessages()).toHaveLength(0);
+    });
+
+    it('đổi dueDate hoặc remindTime của Note tạo khóa remindAt mới và nhắc lại theo giờ mới', async () => {
+      const note = createNote({ remindTime: '10:00' });
+      noteReader.addNote(note);
+
+      await useCase.execute();
+      expect(fakePushSender.getSentMessages()).toHaveLength(1);
+
+      // Reschedule remindTime to 11:00
+      noteReader.clear();
+      noteReader.addNote(createNote({ remindTime: '11:00' }));
+
+      clock.advance(60 * 60 * 1000);
+      const secondResult = await useCase.execute();
+      expect(secondResult).toEqual({ sent: 1, skipped: 0 });
+      expect(fakePushSender.getSentMessages()).toHaveLength(2);
+      expect(fakePushSender.getSentMessages()[1].payload.body).toBe('11:00');
+    });
+  });
+
+  describe('Midnight Boundary Fix — 3-day window [yesterday, today, tomorrow] (S6-BE-01)', () => {
+    it('nhắc ClassSession, Task và Note lúc 00:05 ngày hôm sau (tomorrow) vào đúng 23:50 ngày hôm trước (today) với reminderLeadMinutes = 15', async () => {
+      // Teacher is in Asia/Ho_Chi_Minh (UTC+7).
+      // Current time: 2026-10-27 23:50:00 local -> 2026-10-27T16:50:00.000Z.
+      // Teacher's today is 2026-10-27 (Tuesday), tomorrow is 2026-10-28 (Wednesday, weekday = 3).
+      const lateNightNow = new Date('2026-10-27T16:50:00.000Z');
+      clock.set(lateNightNow);
+
+      // 1. TimetableSlot on Wednesday (weekday = 3) at 00:05
+      const wednesdaySlot = createSlot({
+        id: '00000000-0000-4000-8000-000000000099',
+        weekday: 3, // Wednesday (2026-10-28)
+        startTime: '00:05',
+        endTime: '00:50',
+        subject: 'Ca trực đêm',
+      });
+      await slotRepo.save(wednesdaySlot);
+
+      // 2. Task on 2026-10-28 at 00:05
+      const midnightTask = createTask({
+        id: 'task-midnight-1',
+        title: 'Khóa sổ điểm đúng nửa đêm',
+        date: '2026-10-28',
+        time: '00:05',
+      });
+      taskReader.addTask(midnightTask);
+
+      // 3. Note on 2026-10-28 with remindTime 00:05
+      const midnightNote = createNote({
+        id: '44444444-4444-4444-8444-444444444444',
+        title: 'Ghi chú sau nửa đêm',
+        dueDate: '2026-10-28',
+        remindTime: '00:05',
+      });
+      noteReader.addNote(midnightNote);
+
+      const result = await useCase.execute();
+
+      expect(result).toEqual({ sent: 3, skipped: 0 });
+      expect(fakePushSender.getSentMessages()).toHaveLength(3);
+    });
+
+    it('nhắc mục của ngày hôm qua (yesterday) khi cron chạy vừa qua 00:00 sáng hôm nay nhưng vẫn trong cửa sổ trễ 10 phút', async () => {
+      // Teacher is in Asia/Ho_Chi_Minh (UTC+7).
+      // Item on 2026-10-26 (Monday, weekday = 1) at 23:55 with leadMinutes = 0 (or at 23:59 with lead 5 -> remindAt 23:54).
+      // Let's use leadMinutes = 5, item at 23:59 on 2026-10-26 -> remindAt is 2026-10-26 23:54 local = 2026-10-26T16:54:00.000Z.
+      // Cron runs at 2026-10-27 00:02 local = 2026-10-26T17:02:00.000Z (8 minutes after remindAt, within 10-minute grace window!).
+      const settings5Min = Settings.reconstitute({
+        id: 'settings-1',
+        accountId: teacherId,
+        locale: 'vi',
+        timeZone: 'Asia/Ho_Chi_Minh',
+        pushEnabled: true,
+        reminderLeadMinutes: 5,
+        createdAt: new Date('2026-10-20T00:00:00.000Z'),
+        updatedAt: new Date('2026-10-20T00:00:00.000Z'),
+      });
+      await settingsRepo.save(settings5Min);
+
+      clock.set(new Date('2026-10-26T17:02:00.000Z')); // 2026-10-27 00:02 local
+
+      const yesterdayAdHoc = createAdHocSession({
+        id: '00000000-0000-4000-8000-000000000088',
+        date: '2026-10-26',
+        startTime: '23:58',
+        endTime: '23:59',
+        subject: 'Tổng kết cuối ngày',
+      });
+      await sessionRepo.save(yesterdayAdHoc);
+
+      const yesterdayTask = createTask({
+        id: 'task-yesterday-1',
+        date: '2026-10-26',
+        time: '23:59',
+      });
+      taskReader.addTask(yesterdayTask);
+
+      const yesterdayNote = createNote({
+        id: '55555555-5555-4555-8555-555555555555',
+        dueDate: '2026-10-26',
+        remindTime: '23:59',
+      });
+      noteReader.addNote(yesterdayNote);
+
+      const result = await useCase.execute();
+      expect(result).toEqual({ sent: 3, skipped: 0 });
+    });
+  });
+
+  describe('In-App Notifications & 30-day Cleanup (S6-BE-02)', () => {
+    it('luôn tạo InAppNotification và lưu SentReminder idempotent ngay cả khi giáo viên chưa có PushSubscription', async () => {
+      // Clear all push subscriptions -> teacher has no browser push registered
+      pushSubRepo.clear();
+
+      taskReader.addTask(createTask({ id: 'task-no-sub', title: 'Chấm bài' }));
+      noteReader.addNote(
+        createNote({
+          id: '77777777-7777-4777-8777-777777777777',
+          title: 'Ghi chú không push',
+          dueDate: '2026-10-27',
+          remindTime: '10:00',
+        }),
+      );
+      await slotRepo.save(createSlot());
+
+      const firstRun = await useCase.execute();
+      expect(firstRun).toEqual({ sent: 3, skipped: 0 });
+      expect(fakePushSender.getSentMessages()).toHaveLength(0);
+
+      const inAppItems = inAppNotificationRepo.getAll();
+      expect(inAppItems).toHaveLength(3);
+      expect(inAppItems.map((i) => i.type).sort()).toEqual(['class_session', 'note', 'task']);
+      expect(sentReminderRepo.getAll()).toHaveLength(3);
+
+      // Second run in the same 10m window must be idempotent
+      const secondRun = await useCase.execute();
+      expect(secondRun).toEqual({ sent: 0, skipped: 3 });
+      expect(inAppNotificationRepo.getAll()).toHaveLength(3);
+    });
+
+    it('dọn dẹp InAppNotification cũ quá 30 ngày trong bước housekeeping', async () => {
+      const oldCreatedAt = new Date(exactRemindTime.getTime() - 31 * 24 * 60 * 60 * 1000);
+      const recentCreatedAt = new Date(exactRemindTime.getTime() - 5 * 24 * 60 * 60 * 1000);
+
+      await inAppNotificationRepo.save(
+        InAppNotification.reconstitute({
+          id: 'old-notif',
+          accountId: teacherId,
+          type: 'task',
+          targetId: 't-old',
+          title: 'Old',
+          body: '10:00',
+          url: '/tasks',
+          data: null,
+          readAt: null,
+          createdAt: oldCreatedAt,
+        }),
+      );
+      await inAppNotificationRepo.save(
+        InAppNotification.reconstitute({
+          id: 'recent-notif',
+          accountId: teacherId,
+          type: 'task',
+          targetId: 't-recent',
+          title: 'Recent',
+          body: '10:00',
+          url: '/tasks',
+          data: null,
+          readAt: null,
+          createdAt: recentCreatedAt,
+        }),
+      );
+
+      await useCase.execute();
+
+      const remaining = inAppNotificationRepo.getAll();
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0].id).toBe('recent-notif');
     });
   });
 });

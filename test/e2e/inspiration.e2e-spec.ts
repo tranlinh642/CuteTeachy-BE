@@ -44,6 +44,9 @@ describe('Inspiration E2E (HTTP API with real Postgres)', () => {
   });
 
   afterAll(async () => {
+    if (prisma) {
+      await seedInspirations(prisma).catch(() => undefined);
+    }
     if (app) {
       await app.close();
     }

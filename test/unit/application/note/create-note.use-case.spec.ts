@@ -150,4 +150,28 @@ describe('CreateNoteUseCase', () => {
     expect(result.created).toBe(true);
     expect(result.note.completed).toBe(true);
   });
+
+  it('creates note with remindTime and rejects invalid remindTime', async () => {
+    const result = await useCase.execute({
+      id: validId,
+      accountId,
+      title: 'Note có giờ nhắc',
+      dueDate: '2026-10-27',
+      remindTime: '09:30',
+    });
+
+    expect(result.created).toBe(true);
+    expect(result.note.dueDate).toBe('2026-10-27');
+    expect(result.note.remindTime).toBe('09:30');
+
+    await expect(
+      useCase.execute({
+        id: '99999999-9999-4999-8999-999999999999',
+        accountId,
+        title: 'Note sai giờ nhắc',
+        dueDate: '2026-10-27',
+        remindTime: '25:99',
+      }),
+    ).rejects.toThrow(NoteValidationError);
+  });
 });

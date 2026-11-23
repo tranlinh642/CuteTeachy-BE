@@ -28,6 +28,62 @@ export class PushSubscription {
     private _updatedAt: Date,
   ) {}
 
+  private static validateEndpoint(endpoint: string): void {
+    if (!endpoint) {
+      throw new PushSubscriptionValidationError('endpoint is required');
+    }
+
+    let url: URL;
+    try {
+      url = new URL(endpoint);
+    } catch {
+      throw new PushSubscriptionValidationError('endpoint must be a valid HTTPS URL');
+    }
+
+    if (url.protocol !== 'https:') {
+      throw new PushSubscriptionValidationError('endpoint must use https protocol');
+    }
+
+    if (url.username || url.password) {
+      throw new PushSubscriptionValidationError('endpoint must not contain credentials');
+    }
+
+    const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    if (
+      !hostname ||
+      hostname === 'localhost' ||
+      hostname.endsWith('.localhost') ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.internal') ||
+      hostname === '::1' ||
+      hostname === '0.0.0.0' ||
+      hostname.startsWith('::ffff:') ||
+      /^f[cd][0-9a-f]{0,2}:/i.test(hostname) ||
+      hostname.startsWith('fe80:')
+    ) {
+      throw new PushSubscriptionValidationError('endpoint hostname is not allowed');
+    }
+
+    const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ipv4Match) {
+      const octets = ipv4Match.slice(1, 5).map(Number);
+      if (octets.some((o) => o < 0 || o > 255)) {
+        throw new PushSubscriptionValidationError('endpoint hostname is not allowed');
+      }
+      const [a, b] = octets;
+      if (
+        a === 0 ||
+        a === 10 ||
+        a === 127 ||
+        (a === 169 && b === 254) ||
+        (a === 172 && b >= 16 && b <= 31) ||
+        (a === 192 && b === 168)
+      ) {
+        throw new PushSubscriptionValidationError('endpoint hostname is not allowed');
+      }
+    }
+  }
+
   static create(props: CreatePushSubscriptionProps): PushSubscription {
     if (!props.id || typeof props.id !== 'string' || !props.id.trim()) {
       throw new PushSubscriptionValidationError('Subscription id is required');
@@ -36,9 +92,8 @@ export class PushSubscription {
       throw new PushSubscriptionValidationError('accountId is required');
     }
     const endpoint = typeof props.endpoint === 'string' ? props.endpoint.trim() : '';
-    if (!endpoint) {
-      throw new PushSubscriptionValidationError('endpoint is required');
-    }
+    PushSubscription.validateEndpoint(endpoint);
+
     if (!(props.now instanceof Date) || isNaN(props.now.getTime())) {
       throw new PushSubscriptionValidationError('now is required and must be a valid Date');
     }

@@ -49,8 +49,30 @@ describe('ClassSession Entity', () => {
       expect(session.isAdHoc()).toBe(true);
       expect(session.isOverride()).toBe(false);
       expect(session.isDeleted()).toBe(false);
+      expect(session.category).toBe('school_teaching');
       expect(session.createdAt).toEqual(now);
       expect(session.updatedAt).toEqual(now);
+    });
+
+    it('creates a valid ad-hoc session with explicit category (extra_teaching, self_study) and rejects invalid category', () => {
+      const extraSession = ClassSession.createAdHoc({
+        ...validAdHocProps,
+        category: 'extra_teaching',
+      });
+      expect(extraSession.category).toBe('extra_teaching');
+
+      const studySession = ClassSession.createAdHoc({
+        ...validAdHocProps,
+        category: 'self_study',
+      });
+      expect(studySession.category).toBe('self_study');
+
+      expect(() =>
+        ClassSession.createAdHoc({
+          ...validAdHocProps,
+          category: 'invalid_cat' as any,
+        }),
+      ).toThrow(ClassSessionValidationError);
     });
 
     it('validates UUID for id', () => {

@@ -46,8 +46,11 @@ describe('POST /internal/reminders/dispatch (e2e)', () => {
     fakePushSender.clear();
     clock.set(fixedNow);
 
+    await prisma.inAppNotification.deleteMany();
     await prisma.sentReminder.deleteMany();
     await prisma.pushSubscription.deleteMany();
+    await prisma.noteTag.deleteMany();
+    await prisma.note.deleteMany();
     await prisma.taskTag.deleteMany();
     await prisma.task.deleteMany();
     await prisma.classSession.deleteMany();
@@ -435,6 +438,270 @@ describe('POST /internal/reminders/dispatch (e2e)', () => {
 
       expect(dispatchRes.body.sent).toBe(0);
       expect(fakePushSender.getSentMessages()).toHaveLength(0);
+    });
+
+    it('formats class session reminder titles according to ScheduleCategory (school_teaching, extra_teaching, self_study)', async () => {
+      const { token } = await createTeacher('teacher-categories@example.com');
+
+      await request(app.getHttpServer())
+        .post('/push/subscriptions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          endpoint: 'https://fcm.googleapis.com/fcm/send/categories-device',
+          keys: {
+            p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QT9t044Yjs2Bm',
+            auth: 'tBHItJI5svbpez7KI4CCXg',
+          },
+        })
+        .expect(201);
+
+      // 1. TimetableSlot with extra_teaching on Tuesday 10:00
+      await request(app.getHttpServer())
+        .post('/timetable-slots')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: 'aaaa1111-1111-4111-8111-111111111111',
+          weekday: 2,
+          startTime: '10:00',
+          endTime: '11:30',
+          subject: 'Toán bồi dưỡng',
+          grade: '9A',
+          tone: 'lavender',
+          category: 'extra_teaching',
+          effectiveFrom: '2026-10-01',
+        })
+        .expect(201);
+
+      // 2. Ad-hoc ClassSession with self_study on 2026-10-27 10:00
+      await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: 'bbbb2222-2222-4111-8111-222222222222',
+          date: '2026-10-27',
+          startTime: '10:00',
+          endTime: '11:30',
+          subject: 'IELTS Academic',
+          tone: 'mint',
+          category: 'self_study',
+        })
+        .expect(201);
+
+      const dispatchRes = await request(app.getHttpServer())
+        .post('/internal/reminders/dispatch')
+        .set('X-Cron-Secret', validCronSecret)
+        .expect(200);
+
+      expect(dispatchRes.body.sent).toBe(2);
+      const titles = fakePushSender.getSentMessages().map((m) => m.payload.title);
+      expect(titles).toContain('Ca dạy thêm: Toán bồi dưỡng 9A');
+      expect(titles).toContain('Lịch học: IELTS Academic');
+    });
+  });
+
+  describe('Dispatch Flow - Note Reminders & Midnight Boundary (S6-BE-01)', () => {
+    it('dispatches reminder for Note with dueDate + remindTime (lead subtracted) and Note with only dueDate (at 07:00)', async () => {
+      const { token, accountId } = await createTeacher('teacher-note@example.com');
+
+      await request(app.getHttpServer())
+        .post('/push/subscriptions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          endpoint: 'https://fcm.googleapis.com/fcm/send/note-device',
+          keys: {
+            p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QT9t044Yjs2Bm',
+            auth: 'tBHItJI5svbpez7KI4CCXg',
+          },
+        })
+        .expect(201);
+
+      const timedNoteId = '55555555-5555-4111-8111-555555555555';
+      const dateOnlyNoteId = '66666666-6666-4111-8111-666666666666';
+
+      // Note 1: dueDate 2026-10-27 + remindTime 10:00 -> remindAt = 09:45 local = 02:45 UTC (fixedNow)
+      await request(app.getHttpServer())
+        .post('/notes')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: timedNoteId,
+          title: 'Nộp điểm E2E',
+          dueDate: '2026-10-27',
+          remindTime: '10:00',
+        })
+        .expect(201);
+
+      // Note 2: dueDate 2026-10-27 without remindTime -> remindAt = 07:00 local = 00:00 UTC
+      await request(app.getHttpServer())
+        .post('/notes')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: dateOnlyNoteId,
+          title: 'Ghi chú đầu ngày E2E',
+          dueDate: '2026-10-27',
+        })
+        .expect(201);
+
+      // At fixedNow (02:45 UTC), Note 1 is due, Note 2 is >10m in the past (00:00 UTC)
+      const firstDispatch = await request(app.getHttpServer())
+        .post('/internal/reminders/dispatch')
+        .set('X-Cron-Secret', validCronSecret)
+        .expect(200);
+
+      expect(firstDispatch.body).toEqual({
+        sent: 1,
+        skipped: 1,
+      });
+
+      expect(fakePushSender.getSentMessages()).toHaveLength(1);
+      expect(fakePushSender.getSentMessages()[0].payload).toEqual({
+        title: 'Nhắc nhở ghi chú: Nộp điểm E2E',
+        body: '10:00',
+        url: `/notes?noteId=${timedNoteId}`,
+        tag: `note-${timedNoteId}-${fixedNow.getTime()}`,
+        data: {
+          type: 'note',
+          id: timedNoteId,
+          date: '2026-10-27',
+          url: `/notes?noteId=${timedNoteId}`,
+          remindAt: fixedNow.toISOString(),
+        },
+      });
+
+      // Now move clock to 2026-10-27 07:00 local (00:00 UTC) -> Note 2 should fire!
+      fakePushSender.clear();
+      clock.set(new Date('2026-10-27T00:00:00.000Z'));
+
+      const morningDispatch = await request(app.getHttpServer())
+        .post('/internal/reminders/dispatch')
+        .set('X-Cron-Secret', validCronSecret)
+        .expect(200);
+
+      expect(morningDispatch.body).toEqual({
+        sent: 1,
+        skipped: 1,
+      });
+
+      expect(fakePushSender.getSentMessages()).toHaveLength(1);
+      expect(fakePushSender.getSentMessages()[0].payload.title).toBe(
+        'Nhắc nhở ghi chú: Ghi chú đầu ngày E2E',
+      );
+      expect(fakePushSender.getSentMessages()[0].payload.body).toBe('07:00');
+      expect(fakePushSender.getSentMessages()[0].payload.url).toBe(
+        `/notes?noteId=${dateOnlyNoteId}`,
+      );
+
+      const sentRecords = await prisma.sentReminder.findMany({
+        where: { accountId, type: 'note' },
+      });
+      expect(sentRecords).toHaveLength(2);
+    });
+
+    it('dispatches reminders across midnight boundary (00:05 tomorrow reminded at 23:50 today)', async () => {
+      const { token } = await createTeacher('teacher-midnight@example.com');
+
+      await request(app.getHttpServer())
+        .post('/push/subscriptions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          endpoint: 'https://fcm.googleapis.com/fcm/send/midnight-device',
+          keys: {
+            p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QT9t044Yjs2Bm',
+            auth: 'tBHItJI5svbpez7KI4CCXg',
+          },
+        })
+        .expect(201);
+
+      // Clock is 2026-10-27 23:50 local (Asia/Ho_Chi_Minh) = 2026-10-27T16:50:00.000Z
+      clock.set(new Date('2026-10-27T16:50:00.000Z'));
+
+      // Ad-hoc class session on 2026-10-28 at 00:05
+      await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: '77777777-7777-4111-8111-777777777777',
+          date: '2026-10-28',
+          startTime: '00:05',
+          endTime: '00:50',
+          subject: 'Ca trực nửa đêm',
+          tone: 'blue',
+        })
+        .expect(201);
+
+      // Task on 2026-10-28 at 00:05
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: '88888888-8888-4111-8111-888888888888',
+          title: 'Task sau nửa đêm',
+          date: '2026-10-28',
+          time: '00:05',
+          category: 'school',
+        })
+        .expect(201);
+
+      // Note on 2026-10-28 at 00:05
+      await request(app.getHttpServer())
+        .post('/notes')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: '99999999-9999-4111-8111-999999999999',
+          title: 'Note sau nửa đêm',
+          dueDate: '2026-10-28',
+          remindTime: '00:05',
+        })
+        .expect(201);
+
+      const dispatchRes = await request(app.getHttpServer())
+        .post('/internal/reminders/dispatch')
+        .set('X-Cron-Secret', validCronSecret)
+        .expect(200);
+
+      expect(dispatchRes.body).toEqual({
+        sent: 3,
+        skipped: 0,
+      });
+      expect(fakePushSender.getSentMessages()).toHaveLength(3);
+    });
+
+    it('creates InAppNotification on dispatch even when teacher has no PushSubscription (S6-BE-02)', async () => {
+      const { token } = await createTeacher('teacher-no-push-sub@example.com');
+
+      clock.set(fixedNow);
+
+      await request(app.getHttpServer())
+        .post('/notes')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: 'aaaaaaaa-aaaa-4111-8111-aaaaaaaaaaaa',
+          title: 'Ghi chú chỉ nhận In-App',
+          dueDate: '2026-10-27',
+          remindTime: '10:00',
+        })
+        .expect(201);
+
+      const dispatchRes = await request(app.getHttpServer())
+        .post('/internal/reminders/dispatch')
+        .set('X-Cron-Secret', validCronSecret)
+        .expect(200);
+
+      expect(dispatchRes.body).toEqual({
+        sent: 1,
+        skipped: 0,
+      });
+      expect(fakePushSender.getSentMessages()).toHaveLength(0);
+
+      const notifRes = await request(app.getHttpServer())
+        .get('/notifications')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(notifRes.body.unreadCount).toBe(1);
+      expect(notifRes.body.items).toHaveLength(1);
+      expect(notifRes.body.items[0].type).toBe('note');
+      expect(notifRes.body.items[0].targetId).toBe('aaaaaaaa-aaaa-4111-8111-aaaaaaaaaaaa');
+      expect(notifRes.body.items[0].url).toBe('/notes?noteId=aaaaaaaa-aaaa-4111-8111-aaaaaaaaaaaa');
     });
   });
 });

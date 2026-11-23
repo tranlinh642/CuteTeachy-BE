@@ -1,6 +1,8 @@
 import { TimetableSlot } from './timetable-slot.entity';
 import { Tone } from './tone.vo';
+import { ScheduleCategory } from './schedule-category.vo';
 import { TimetableValidationError } from './timetable.errors';
+import { addDaysToDateString } from './timetable-date.helper';
 
 export interface ModifySlotInput {
   slot: TimetableSlot;
@@ -16,6 +18,7 @@ export interface ModifySlotInput {
     grade?: string | null;
     room?: string | null;
     tone?: Tone;
+    category?: ScheduleCategory;
     effectiveFrom?: string;
     effectiveTo?: string | null;
   };
@@ -40,7 +43,6 @@ export function planSlotModification(input: ModifySlotInput): SlotModificationRe
   const { slot, today, yesterday, newSlotId, now, updates } = input;
 
   if (slot.hasPastSessions(today)) {
-    // Slot has past sessions (effectiveFrom < today) -> SPLIT
     if (slot.effectiveTo !== null && slot.effectiveTo < today) {
       if (!updates.effectiveTo || updates.effectiveTo < today) {
         throw new TimetableValidationError(
@@ -62,6 +64,7 @@ export function planSlotModification(input: ModifySlotInput): SlotModificationRe
     const newGrade = updates.grade !== undefined ? updates.grade : oldSlot.grade;
     const newRoom = updates.room !== undefined ? updates.room : oldSlot.room;
     const newTone = updates.tone ?? oldSlot.tone;
+    const newCategory = updates.category ?? oldSlot.category;
     const newEffectiveFrom = today; // always today
     const newEffectiveTo =
       updates.effectiveTo !== undefined ? updates.effectiveTo : originalEffectiveTo;
@@ -76,6 +79,7 @@ export function planSlotModification(input: ModifySlotInput): SlotModificationRe
       grade: newGrade,
       room: newRoom,
       tone: newTone,
+      category: newCategory,
       effectiveFrom: newEffectiveFrom,
       effectiveTo: newEffectiveTo,
       now,
@@ -141,4 +145,24 @@ export function planSlotDeletion(
 
   slot.delete(now);
   return { type: 'deleted', slot };
+}
+
+export interface SlotReplacementResolutionResult {
+  action: 'ended' | 'deleted';
+  slot: TimetableSlot;
+}
+
+export function resolveConflictingSlotForReplacement(
+  oldSlot: TimetableSlot,
+  targetEffectiveFrom: string,
+  now: Date,
+): SlotReplacementResolutionResult {
+  if (oldSlot.effectiveFrom < targetEffectiveFrom) {
+    const dayBefore = addDaysToDateString(targetEffectiveFrom, -1);
+    oldSlot.endAt(dayBefore, now);
+    return { action: 'ended', slot: oldSlot };
+  }
+
+  oldSlot.markDeleted(now);
+  return { action: 'deleted', slot: oldSlot };
 }

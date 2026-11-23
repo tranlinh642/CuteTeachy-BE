@@ -14,6 +14,7 @@ import { UserDto } from '../../../application/account/account.dto';
 import { AccessTokenPayload } from '../../../application/account/ports/token.service.port';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AccountValidationError } from '../../../domain/account/account.errors';
+import { MAX_AVATAR_SIZE_BYTES } from '../../../domain/avatar/avatar-file.validator';
 
 @Controller('auth/profile/avatar')
 export class AvatarController {
@@ -24,7 +25,11 @@ export class AvatarController {
 
   @Post()
   @HttpCode(HttpStatus.OK)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_AVATAR_SIZE_BYTES, files: 1 },
+    }),
+  )
   async upload(
     @CurrentUser() user: AccessTokenPayload,
     @UploadedFile() file: Express.Multer.File | undefined,

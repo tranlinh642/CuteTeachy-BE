@@ -43,9 +43,27 @@ describe('CreateTimetableSlotUseCase', () => {
     expect(output.slot.subject).toBe('Sinh học');
     expect(output.slot.startTime).toBe('07:30');
     expect(output.slot.endTime).toBe('08:15');
+    expect(output.slot.category).toBe('school_teaching');
 
     const saved = await repo.findById(slotId);
     expect(saved).not.toBeNull();
+  });
+
+  it('creates a timetable slot with extra_teaching or self_study category', async () => {
+    const output = await useCase.execute({
+      id: slotId,
+      accountId,
+      weekday: 2,
+      startTime: '18:00',
+      endTime: '19:30',
+      subject: 'Toán bồi dưỡng',
+      tone: 'lavender',
+      category: 'extra_teaching',
+      effectiveFrom: '2026-10-01',
+    });
+
+    expect(output.created).toBe(true);
+    expect(output.slot.category).toBe('extra_teaching');
   });
 
   it('returns existing slot with created: false when payload is identical', async () => {

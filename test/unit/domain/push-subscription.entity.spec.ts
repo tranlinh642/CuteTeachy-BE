@@ -85,6 +85,33 @@ describe('PushSubscription Domain Entity', () => {
       ).toThrow(PushSubscriptionValidationError);
     });
 
+    it('rejects non-HTTPS, localhost, loopback, link-local, and private IP SSRF endpoints (BE-02)', () => {
+      const unsafeEndpoints = [
+        'http://169.254.169.254/latest/meta-data/',
+        'https://169.254.169.254/latest/meta-data/',
+        'https://127.0.0.1:8080/test',
+        'https://localhost:3000/push',
+        'https://[::1]/push',
+        'https://10.0.0.1/push',
+        'https://192.168.1.1/push',
+        'https://172.16.0.1/push',
+        'https://user:pass@fcm.googleapis.com/fcm/send/1',
+        'https://service.internal/push',
+      ];
+
+      for (const endpoint of unsafeEndpoints) {
+        expect(() =>
+          PushSubscription.create({
+            id: 'sub-1',
+            accountId: 'acc-1',
+            endpoint,
+            keys: baseKeys,
+            now,
+          }),
+        ).toThrow(PushSubscriptionValidationError);
+      }
+    });
+
     it('reconstitutes an existing subscription from persistence', () => {
       const createdAt = new Date('2026-10-26T00:00:00Z');
       const updatedAt = new Date('2026-10-27T08:00:00Z');

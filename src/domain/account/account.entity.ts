@@ -55,6 +55,12 @@ export class Account {
     }
   }
 
+  claimUnverifiedWithGoogle(now = new Date()): void {
+    this.props.emailVerifiedAt = now;
+    this.props.loginProviders = ['google'];
+    this.props.updatedAt = now;
+  }
+
   verifyEmail(now = new Date()): void {
     this.props.emailVerifiedAt = now;
     this.props.updatedAt = now;

@@ -1,5 +1,10 @@
 import { SyncableEntity } from '../shared/sync-idempotency';
 import { Tone, isTone } from './tone.vo';
+import {
+  DEFAULT_SCHEDULE_CATEGORY,
+  ScheduleCategory,
+  isScheduleCategory,
+} from './schedule-category.vo';
 import { TimetableValidationError } from './timetable.errors';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -16,6 +21,7 @@ export interface CreateTimetableSlotProps {
   grade?: string | null;
   room?: string | null;
   tone: Tone;
+  category?: ScheduleCategory;
   effectiveFrom: string;
   effectiveTo?: string | null;
   now: Date;
@@ -31,6 +37,7 @@ export interface RehydrateTimetableSlotProps {
   grade?: string | null;
   room?: string | null;
   tone: Tone;
+  category?: ScheduleCategory;
   effectiveFrom: string;
   effectiveTo?: string | null;
   createdAt: Date;
@@ -46,6 +53,7 @@ export interface UpdateTimetableSlotProps {
   grade?: string | null;
   room?: string | null;
   tone?: Tone;
+  category?: ScheduleCategory;
   effectiveFrom?: string;
   effectiveTo?: string | null;
   now: Date;
@@ -62,6 +70,7 @@ export class TimetableSlot implements SyncableEntity {
     private _grade: string | null,
     private _room: string | null,
     private _tone: Tone,
+    private _category: ScheduleCategory,
     private _effectiveFrom: string,
     private _effectiveTo: string | null,
     private readonly _createdAt: Date,
@@ -78,6 +87,8 @@ export class TimetableSlot implements SyncableEntity {
     const validGrade = TimetableSlot.normalizeOptionalString(props.grade);
     const validRoom = TimetableSlot.normalizeOptionalString(props.room);
     TimetableSlot.validateTone(props.tone);
+    const validCategory = props.category ?? DEFAULT_SCHEDULE_CATEGORY;
+    TimetableSlot.validateCategory(validCategory);
     TimetableSlot.validateEffectiveDates(props.effectiveFrom, props.effectiveTo);
 
     return new TimetableSlot(
@@ -90,6 +101,7 @@ export class TimetableSlot implements SyncableEntity {
       validGrade,
       validRoom,
       props.tone,
+      validCategory,
       props.effectiveFrom,
       props.effectiveTo ? props.effectiveTo : null,
       props.now,
@@ -109,6 +121,7 @@ export class TimetableSlot implements SyncableEntity {
       props.grade ?? null,
       props.room ?? null,
       props.tone,
+      props.category ?? DEFAULT_SCHEDULE_CATEGORY,
       props.effectiveFrom,
       props.effectiveTo ?? null,
       props.createdAt,
@@ -153,6 +166,10 @@ export class TimetableSlot implements SyncableEntity {
     return this._tone;
   }
 
+  get category(): ScheduleCategory {
+    return this._category;
+  }
+
   get effectiveFrom(): string {
     return this._effectiveFrom;
   }
@@ -192,6 +209,10 @@ export class TimetableSlot implements SyncableEntity {
     this._updatedAt = now;
   }
 
+  markDeleted(now: Date): void {
+    this.delete(now);
+  }
+
   update(props: UpdateTimetableSlotProps): void {
     const newWeekday = props.weekday ?? this._weekday;
     const newStartTime = props.startTime ?? this._startTime;
@@ -200,6 +221,7 @@ export class TimetableSlot implements SyncableEntity {
     const newGrade = props.grade !== undefined ? props.grade : this._grade;
     const newRoom = props.room !== undefined ? props.room : this._room;
     const newTone = props.tone ?? this._tone;
+    const newCategory = props.category ?? this._category;
     const newEffectiveFrom = props.effectiveFrom ?? this._effectiveFrom;
     const newEffectiveTo =
       props.effectiveTo !== undefined ? props.effectiveTo : this._effectiveTo;
@@ -210,6 +232,7 @@ export class TimetableSlot implements SyncableEntity {
     const validGrade = TimetableSlot.normalizeOptionalString(newGrade);
     const validRoom = TimetableSlot.normalizeOptionalString(newRoom);
     TimetableSlot.validateTone(newTone);
+    TimetableSlot.validateCategory(newCategory);
     TimetableSlot.validateEffectiveDates(newEffectiveFrom, newEffectiveTo);
 
     this._weekday = newWeekday;
@@ -219,6 +242,7 @@ export class TimetableSlot implements SyncableEntity {
     this._grade = validGrade;
     this._room = validRoom;
     this._tone = newTone;
+    this._category = newCategory;
     this._effectiveFrom = newEffectiveFrom;
     this._effectiveTo = newEffectiveTo ? newEffectiveTo : null;
     this._updatedAt = props.now;
@@ -232,12 +256,14 @@ export class TimetableSlot implements SyncableEntity {
     grade?: string | null;
     room?: string | null;
     tone: Tone;
+    category?: ScheduleCategory;
     effectiveFrom: string;
     effectiveTo?: string | null;
   }): boolean {
     const normGrade = TimetableSlot.normalizeOptionalString(payload.grade);
     const normRoom = TimetableSlot.normalizeOptionalString(payload.room);
     const normSubject = payload.subject?.trim() ?? '';
+    const normCategory = payload.category ?? DEFAULT_SCHEDULE_CATEGORY;
     const normEffTo = payload.effectiveTo ? payload.effectiveTo : null;
 
     return (
@@ -248,6 +274,7 @@ export class TimetableSlot implements SyncableEntity {
       this._grade === normGrade &&
       this._room === normRoom &&
       this._tone === payload.tone &&
+      this._category === normCategory &&
       this._effectiveFrom === payload.effectiveFrom &&
       this._effectiveTo === normEffTo
     );
@@ -339,6 +366,14 @@ export class TimetableSlot implements SyncableEntity {
     if (!isTone(tone)) {
       throw new TimetableValidationError(
         'tone must be one of pink, blue, beige, lavender, rose, mint',
+      );
+    }
+  }
+
+  private static validateCategory(category: unknown): void {
+    if (!isScheduleCategory(category)) {
+      throw new TimetableValidationError(
+        'category must be one of school_teaching, extra_teaching, self_study',
       );
     }
   }
