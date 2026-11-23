@@ -19,17 +19,33 @@ export class PrismaTagRepository implements TagRepository {
   }
 
   async findByName(accountId: string, name: string): Promise<Tag | null> {
+    const trimmed = name.trim();
     const raw = await this.prisma.tag.findFirst({
       where: {
         accountId,
         deletedAt: null,
         name: {
-          equals: name.trim(),
+          equals: trimmed,
           mode: 'insensitive',
         },
       },
     });
-    return raw ? TagMapper.toDomain(raw) : null;
+    if (raw) {
+      return TagMapper.toDomain(raw);
+    }
+
+    // Locale-independent Unicode fallback (handles PostgreSQL C/POSIX locales that do not fold Đ/đ)
+    const normalizedTarget = trimmed.normalize('NFC').toLocaleLowerCase('vi');
+    const activeTags = await this.prisma.tag.findMany({
+      where: {
+        accountId,
+        deletedAt: null,
+      },
+    });
+    const matched = activeTags.find(
+      (row) => row.name.trim().normalize('NFC').toLocaleLowerCase('vi') === normalizedTarget,
+    );
+    return matched ? TagMapper.toDomain(matched) : null;
   }
 
   async findByAccount(
