@@ -23,3 +23,13 @@ export class AvatarNotFoundError extends DomainError {
     super(message);
   }
 }
+
+export class StorageNotConfiguredError extends DomainError {
+  readonly code = 'service_unavailable';
+
+  constructor(
+    message = 'Object storage is not configured on the server (missing S3_* environment variables)',
+  ) {
+    super(message);
+  }
+}

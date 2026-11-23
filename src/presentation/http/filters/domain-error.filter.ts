@@ -57,7 +57,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           };
         } else {
           body = {
-            code: status === HttpStatus.SERVICE_UNAVAILABLE ? 'service_unavailable' : 'error',
+            code:
+              status === HttpStatus.SERVICE_UNAVAILABLE
+                ? 'service_unavailable'
+                : status === HttpStatus.PAYLOAD_TOO_LARGE
+                  ? 'file_too_large'
+                  : 'error',
             message: Array.isArray(resObj.message)
               ? resObj.message.join('; ')
               : String(resObj.message || exception.message),
@@ -65,7 +70,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         }
       } else {
         body = {
-          code: status === HttpStatus.BAD_REQUEST ? 'validation' : 'error',
+          code:
+            status === HttpStatus.BAD_REQUEST
+              ? 'validation'
+              : status === HttpStatus.PAYLOAD_TOO_LARGE
+                ? 'file_too_large'
+                : 'error',
           message: String(res),
         };
       }

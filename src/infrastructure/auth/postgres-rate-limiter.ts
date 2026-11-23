@@ -13,13 +13,29 @@ export class PostgresRateLimiter implements RateLimiter {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + windowSeconds * 1000);
 
+    // Prisma stores DateTime columns as UTC `timestamp without time zone`.
+    // Convert bound timestamptz parameters explicitly to UTC so comparisons and writes
+    // remain consistent regardless of PostgreSQL session TimeZone.
     const rows = await this.prisma.$queryRaw<{ count: number; expiresAt: Date }[]>`
       INSERT INTO "rate_limit_counters" ("key", "count", "expiresAt", "createdAt", "updatedAt")
-      VALUES (${key}, 1, ${expiresAt}, ${now}, ${now})
+      VALUES (
+        ${key},
+        1,
+        (${expiresAt}::timestamptz AT TIME ZONE 'UTC'),
+        (${now}::timestamptz AT TIME ZONE 'UTC'),
+        (${now}::timestamptz AT TIME ZONE 'UTC')
+      )
       ON CONFLICT ("key") DO UPDATE
-      SET "count" = CASE WHEN "rate_limit_counters"."expiresAt" <= ${now} THEN 1 ELSE "rate_limit_counters"."count" + 1 END,
-          "expiresAt" = CASE WHEN "rate_limit_counters"."expiresAt" <= ${now} THEN ${expiresAt} ELSE "rate_limit_counters"."expiresAt" END,
-          "updatedAt" = ${now}
+      SET "count" = CASE
+            WHEN "rate_limit_counters"."expiresAt" <= (${now}::timestamptz AT TIME ZONE 'UTC') THEN 1
+            ELSE "rate_limit_counters"."count" + 1
+          END,
+          "expiresAt" = CASE
+            WHEN "rate_limit_counters"."expiresAt" <= (${now}::timestamptz AT TIME ZONE 'UTC')
+              THEN (${expiresAt}::timestamptz AT TIME ZONE 'UTC')
+            ELSE "rate_limit_counters"."expiresAt"
+          END,
+          "updatedAt" = (${now}::timestamptz AT TIME ZONE 'UTC')
       RETURNING "count", "expiresAt";
     `;
 

@@ -129,8 +129,8 @@ describe('AI Assistant E2E (Seam 1 — HTTP API & DB Integration)', () => {
           filename: 'huge.jpg',
           contentType: 'image/jpeg',
         })
-        .expect(400);
-      expect(hugeRes.body.code).toBe('validation_error');
+        .expect(413);
+      expect(hugeRes.body.code).toBe('file_too_large');
     });
   });
 

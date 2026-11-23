@@ -12,7 +12,21 @@ export function isAiDraftItemKind(value: unknown): value is AiDraftItemKind {
   );
 }
 
-export const AI_CONFLICT_STRATEGIES = ['replace_conflicts', 'skip_conflicts'] as const;
+export const AI_DRAFT_ITEM_ACTIONS = ['create', 'update', 'delete', 'cancel'] as const;
+export type AiDraftItemAction = (typeof AI_DRAFT_ITEM_ACTIONS)[number];
+
+export function isAiDraftItemAction(value: unknown): value is AiDraftItemAction {
+  return (
+    typeof value === 'string' &&
+    (AI_DRAFT_ITEM_ACTIONS as readonly string[]).includes(value)
+  );
+}
+
+export const AI_CONFLICT_STRATEGIES = [
+  'replace_conflicts',
+  'skip_conflicts',
+  'replace_all_timetable',
+] as const;
 export type AiConflictStrategy = (typeof AI_CONFLICT_STRATEGIES)[number];
 
 export function isAiConflictStrategy(value: unknown): value is AiConflictStrategy {
@@ -33,11 +47,18 @@ export interface AiScheduleDraftSummary {
   createdCount: number;
   replacedCount: number;
   skippedCount: number;
+  updatedCount?: number;
+  deletedCount?: number;
+  cancelledCount?: number;
 }
 
 export interface AiScheduleDraftItem {
   id: string;
   kind: AiDraftItemKind;
+  action?: AiDraftItemAction;
+  targetSlotId?: string | null;
+  targetSessionId?: string | null;
+  targetSummary?: string | null;
   category: ScheduleCategory;
   titleOrSubject: string;
   grade?: string | null;
@@ -73,6 +94,12 @@ export function validateAiScheduleDraftItem(item: AiScheduleDraftItem): AiSchedu
       'Draft item kind must be timetable_slot, class_session, or task',
     );
   }
+  const action = item.action ?? 'create';
+  if (!isAiDraftItemAction(action)) {
+    throw new AiAssistantValidationError(
+      'Draft item action must be create, update, delete, or cancel',
+    );
+  }
   const category = item.category ?? 'school_teaching';
   if (!isScheduleCategory(category)) {
     throw new AiAssistantValidationError(
@@ -93,6 +120,10 @@ export function validateAiScheduleDraftItem(item: AiScheduleDraftItem): AiSchedu
   return {
     id: item.id.trim(),
     kind: item.kind,
+    action,
+    targetSlotId: item.targetSlotId?.trim() || null,
+    targetSessionId: item.targetSessionId?.trim() || null,
+    targetSummary: item.targetSummary?.trim() || null,
     category,
     titleOrSubject: item.titleOrSubject.trim(),
     grade: item.grade ?? null,

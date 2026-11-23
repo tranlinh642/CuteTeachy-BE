@@ -213,7 +213,7 @@ describe('Google OAuth & Account Linking E2E', () => {
 
   describe('Full Flow: Account Linking with existing password account', () => {
     it('links Google provider to existing account having same email, does not create new account', async () => {
-      // Step 1: Create existing account with password
+      // Step 1: Create existing verified account with password
       const registerRes = await request(app.getHttpServer())
         .post('/auth/register')
         .send({
@@ -222,6 +222,10 @@ describe('Google OAuth & Account Linking E2E', () => {
         })
         .expect(201);
       const existingAccountId = registerRes.body.user.id;
+      await prisma.account.update({
+        where: { id: existingAccountId },
+        data: { emailVerifiedAt: new Date() },
+      });
 
       // Step 2: User initiates Google login with remember=false
       const initRes = await request(app.getHttpServer())
