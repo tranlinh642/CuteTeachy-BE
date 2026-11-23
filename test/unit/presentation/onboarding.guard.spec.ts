@@ -149,5 +149,11 @@ describe('OnboardingGuard', () => {
 
     const result = await guard.canActivate(context);
     expect(result).toBe(true);
+
+    // Subsequent calls for an already-onboarded account should use cache without re-querying DB
+    const spy = jest.spyOn(getMeUseCase, 'execute');
+    const secondResult = await guard.canActivate(context);
+    expect(secondResult).toBe(true);
+    expect(spy).not.toHaveBeenCalled();
   });
 });

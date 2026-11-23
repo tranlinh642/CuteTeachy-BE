@@ -7,8 +7,15 @@ export interface PutObjectOptions {
   contentType: string;
 }
 
+export interface StoredObjectData {
+  body: Buffer;
+  contentType?: string;
+}
+
 export interface ObjectStorage {
   putObject(options: PutObjectOptions): Promise<void>;
   deleteObject(bucket: string, key: string): Promise<void>;
   getPublicUrl(bucket: string, key: string): string;
+  getObjectBuffer?(bucket: string, key: string): Promise<StoredObjectData | null>;
+  isConfigured?(): boolean;
 }

@@ -80,4 +80,36 @@ describe('S3ObjectStorage', () => {
       Key: 'test.png',
     });
   });
+
+  it('reports isConfigured() as false in production when pointing to localhost default, and true for Supabase S3', () => {
+    const prodUnconfigured = new S3ObjectStorage({
+      ...baseConfig,
+      NODE_ENV: 'production',
+      S3_ENDPOINT: 'http://localhost:9000',
+    });
+    expect(prodUnconfigured.isConfigured()).toBe(false);
+
+    const prodSupabase = new S3ObjectStorage({
+      ...baseConfig,
+      NODE_ENV: 'production',
+      S3_ENDPOINT: 'https://zksavxcadjpcuyuhnqcj.supabase.co/storage/v1/s3',
+      S3_REGION: 'ap-southeast-1',
+    });
+    expect(prodSupabase.isConfigured()).toBe(true);
+  });
+
+  it('reads object bytes via getObjectBuffer and returns null when unconfigured', async () => {
+    const storage = new S3ObjectStorage(baseConfig);
+    const mockSend = jest.fn().mockResolvedValue({
+      ContentType: 'image/jpeg',
+      Body: {
+        transformToByteArray: async () => new Uint8Array([0xff, 0xd8, 0xff]),
+      },
+    });
+    (storage as any).client = { send: mockSend };
+
+    const result = await storage.getObjectBuffer('avatars', 'ai-chat/sample.jpg');
+    expect(result?.contentType).toBe('image/jpeg');
+    expect(result?.body).toEqual(Buffer.from([0xff, 0xd8, 0xff]));
+  });
 });

@@ -3,6 +3,7 @@ import { AvatarRepository } from './ports/avatar.repository.port';
 import { ObjectStorage } from './ports/object-storage.port';
 import { IdGenerator } from '../shared/ports/id-generator.port';
 import { validateAvatarFile } from '../../domain/avatar/avatar-file.validator';
+import { StorageNotConfiguredError } from '../../domain/avatar/avatar.errors';
 import { UnauthorizedError } from '../../domain/account/account.errors';
 import { toUserDto, UserDto } from '../account/account.dto';
 
@@ -29,6 +30,10 @@ export class UploadAvatarUseCase {
     const account = await this.accountRepo.findById(input.accountId);
     if (!account) {
       throw new UnauthorizedError();
+    }
+
+    if (this.storage.isConfigured?.() === false) {
+      throw new StorageNotConfiguredError();
     }
 
     const objectKey = `${this.idGenerator.next()}.${extension}`;

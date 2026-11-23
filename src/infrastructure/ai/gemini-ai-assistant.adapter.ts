@@ -23,7 +23,7 @@ const RESPONSE_SCHEMA = {
     draftItems: {
       type: 'ARRAY',
       description:
-        'List of schedule or task draft items extracted from the teacher message or timetable image. Omit or return empty array when answering a read-only question.',
+        'List of schedule or task draft items extracted from the teacher message or timetable image. Supports create, update, delete, and cancel actions. Omit or return empty array when answering a read-only question.',
       items: {
         type: 'OBJECT',
         required: ['id', 'kind', 'category', 'titleOrSubject'],
@@ -32,6 +32,31 @@ const RESPONSE_SCHEMA = {
           kind: {
             type: 'STRING',
             enum: ['timetable_slot', 'class_session', 'task'],
+          },
+          action: {
+            type: 'STRING',
+            enum: ['create', 'update', 'delete', 'cancel'],
+            nullable: true,
+            description:
+              'Operation to apply: create (default, add new item), update (modify/move an existing timetable_slot or class_session), delete (remove/end an existing recurring timetable_slot or ad-hoc session), cancel (cancel a single class_session occurrence on a specific date).',
+          },
+          targetSlotId: {
+            type: 'STRING',
+            nullable: true,
+            description:
+              'Existing TimetableSlot id from context.timetableSlots when updating/deleting a recurring slot or cancelling a generated session.',
+          },
+          targetSessionId: {
+            type: 'STRING',
+            nullable: true,
+            description:
+              'Existing ClassSession id from context.classSessions (e.g. "<slotId>:YYYY-MM-DD" or ad-hoc UUID) when cancelling/updating/deleting a single session.',
+          },
+          targetSummary: {
+            type: 'STRING',
+            nullable: true,
+            description:
+              'Short human-readable description of the existing slot/session being updated, deleted, or cancelled.',
           },
           category: {
             type: 'STRING',
@@ -97,7 +122,7 @@ export class GeminiAiAssistantAdapter implements AiAssistantPort {
       throw new AiProviderNotConfiguredError();
     }
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:generateContent?key=${encodeURIComponent(this.apiKey)}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:generateContent`;
 
     const systemPrompt = this.buildSystemPrompt(input);
     const parts: Record<string, unknown>[] = [];
@@ -135,6 +160,7 @@ export class GeminiAiAssistantAdapter implements AiAssistantPort {
         responseMimeType: 'application/json',
         responseSchema: RESPONSE_SCHEMA,
         temperature: 0.2,
+        maxOutputTokens: 16384,
       },
     };
 
@@ -147,6 +173,7 @@ export class GeminiAiAssistantAdapter implements AiAssistantPort {
           'x-goog-api-key': this.apiKey,
         },
         body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(55_000),
       });
     } catch (error) {
       throw new AiProviderError(
@@ -173,8 +200,16 @@ export class GeminiAiAssistantAdapter implements AiAssistantPort {
       throw new AiProviderError('Invalid JSON response from Gemini API');
     }
 
-    const candidateText: string | undefined =
-      rawJson?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const candidateParts = rawJson?.candidates?.[0]?.content?.parts;
+    const candidateText: string | undefined = Array.isArray(candidateParts)
+      ? candidateParts
+          .filter(
+            (part: { thought?: boolean; text?: unknown }) =>
+              !part?.thought && typeof part?.text === 'string',
+          )
+          .map((part: { text: string }) => part.text)
+          .join('')
+      : undefined;
 
     if (!candidateText || typeof candidateText !== 'string') {
       throw new AiProviderError('Gemini API returned an empty candidate response');
@@ -225,10 +260,18 @@ export class GeminiAiAssistantAdapter implements AiAssistantPort {
       '- extra_teaching: Lịch dạy thêm, phụ đạo, bồi dưỡng bên ngoài.',
       '- self_study: Lịch học thêm, bồi dưỡng chuyên môn, học ngoại ngữ (IELTS, cao học...) của chính giáo viên.',
       '',
-      '=== QUY TẮC LOẠI MỤC NHÁP (kind) ===',
+      '=== QUY TẮC LOẠI MỤC NHÁP (kind) & HÀNH ĐỘNG (action) ===',
       '- timetable_slot: Lịch lặp lại hàng tuần theo Thứ (weekday 1..7, startTime, endTime, effectiveFrom mặc định là hôm nay).',
       '- class_session: Buổi dạy/học lẻ vào một ngày cụ thể (date YYYY-MM-DD, startTime, endTime).',
       '- task: Công việc cần làm vào một ngày cụ thể (date YYYY-MM-DD, startTime tùy chọn).',
+      '- Các hành động (action) được hỗ trợ:',
+      '  + create (mặc định): Thêm mới tiết TKB, buổi lẻ hoặc công việc. Khi nhận ảnh TKB đầy đủ, trích xuất toàn bộ các tiết có trong ảnh thành timetable_slot (action="create"), áp dụng đầy đủ quy tắc phân loại buổi sáng/chiều mà giáo viên đã nêu trong tin nhắn hoặc lịch sử trò chuyện. Trong reply, nhắc giáo viên có thể chọn chế độ "Thay toàn bộ TKB cũ" nếu muốn thay hoàn toàn TKB hiện tại (tự dọn các ô bị bỏ trống) hoặc "Thay thế lịch trùng" nếu chỉ cập nhật các ô trùng giờ.',
+      '  + update: Sửa hoặc dời một tiết lặp lại đang có trong Timetable Slots (bắt buộc gắn targetSlotId đúng id từ danh sách Timetable Slots bên dưới, giữ/cập nhật đầy đủ weekday, startTime, endTime, titleOrSubject, grade, room, category mới và tóm tắt tiết cũ trong targetSummary). Với buổi lẻ ad-hoc, gắn targetSessionId từ Class Sessions.',
+      '  + delete: Xóa / kết thúc hẳn một tiết lặp lại đang có trong Timetable Slots (bắt buộc gắn targetSlotId đúng id từ Timetable Slots và tóm tắt tiết bị xóa trong targetSummary) hoặc xóa một buổi lẻ ad-hoc (targetSessionId).',
+      '  + cancel: Nghỉ / hủy CHỈ 1 buổi cụ thể vào 1 ngày trong Class Sessions (bắt buộc gắn targetSessionId đúng id từ Class Sessions dạng "<slotId>:YYYY-MM-DD" hoặc ad-hoc id, cùng date YYYY-MM-DD và targetSummary).',
+      '- QUAN TRỌNG KHI DỜI CHỈ 1 BUỔI CỤ THỂ (VD: "Chuyển buổi chiều Thứ 2 tuần này sang tối Thứ 3 19:00-20:30"):',
+      '  Tạo 2 mục trong draftItems: (1) kind="class_session", action="cancel", targetSessionId="<id buổi gốc>", date="<ngày gốc>" để hủy buổi cũ; và (2) kind="class_session", action="create", date="<ngày mới>", startTime, endTime... để tạo buổi mới.',
+      '- Nếu giáo viên gửi ảnh TKB (hoặc ảnh TKB vừa gửi trong lịch sử trò chuyện) và yêu cầu lên lịch, HÃY đọc trực tiếp ảnh đính kèm để trích xuất đầy đủ mọi ô có chữ theo đúng thứ tự Tiết 1..5 Sáng và Tiết 1..5 Chiều (bỏ qua ô trống).',
       '',
       `=== DỮ LIỆU HIỆN TẠI CỦA GIÁO VIÊN (${context.windowFrom} -> ${context.windowTo}) ===`,
       `1. Timetable Slots đang hoạt động: ${JSON.stringify(context.timetableSlots)}`,

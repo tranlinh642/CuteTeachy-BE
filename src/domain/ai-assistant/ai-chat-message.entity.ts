@@ -160,19 +160,24 @@ export class AiChatMessage {
     }
     if (!isAiConflictStrategy(params.conflictStrategy)) {
       throw new AiAssistantValidationError(
-        'conflictStrategy must be replace_conflicts or skip_conflicts',
+        'conflictStrategy must be replace_conflicts, skip_conflicts, or replace_all_timetable',
       );
     }
+
+    const summary: AiScheduleDraftSummary = {
+      createdCount: params.summary.createdCount,
+      replacedCount: params.summary.replacedCount,
+      skippedCount: params.summary.skippedCount,
+      ...(params.summary.updatedCount ? { updatedCount: params.summary.updatedCount } : {}),
+      ...(params.summary.deletedCount ? { deletedCount: params.summary.deletedCount } : {}),
+      ...(params.summary.cancelledCount ? { cancelledCount: params.summary.cancelledCount } : {}),
+    };
 
     this._draft = {
       status: 'applied',
       appliedAt: params.appliedAt,
       conflictStrategy: params.conflictStrategy,
-      summary: {
-        createdCount: params.summary.createdCount,
-        replacedCount: params.summary.replacedCount,
-        skippedCount: params.summary.skippedCount,
-      },
+      summary,
       items: params.items.map(validateAiScheduleDraftItem),
     };
   }

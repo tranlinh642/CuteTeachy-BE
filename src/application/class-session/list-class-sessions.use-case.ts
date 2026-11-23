@@ -45,14 +45,11 @@ export class ListClassSessionsUseCase {
     range: ClassSessionDateRange,
     now: Date,
   ): Promise<SyncEnvelope<ClassSessionDto>> {
-    const activeSlots = await this.slotRepo.findActiveByAccount(accountId);
+    const [activeSlots, dbSessions] = await Promise.all([
+      this.slotRepo.findActiveByAccount(accountId),
+      this.sessionRepo.findByAccountAndDateRange(accountId, range.from, range.to),
+    ]);
     const generatedSessions = generateClassSessions(activeSlots, range.from, range.to);
-
-    const dbSessions = await this.sessionRepo.findByAccountAndDateRange(
-      accountId,
-      range.from,
-      range.to,
-    );
 
     const { overrides, activeAdHocs } = partitionClassSessions(dbSessions);
 

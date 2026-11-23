@@ -94,8 +94,10 @@ export class SendAiMessageUseCase {
         now: new Date(now.getTime() + 1),
       });
 
-      await this.chatMessageRepo.save(userMessage);
-      await this.chatMessageRepo.save(assistantMessage);
+      await Promise.all([
+        this.chatMessageRepo.save(userMessage),
+        this.chatMessageRepo.save(assistantMessage),
+      ]);
 
       return {
         userMessage: toAiChatMessageDto(userMessage),
@@ -119,19 +121,35 @@ export class SendAiMessageUseCase {
         input.image.size,
         input.image.mimeType,
       );
-      imageKey = `ai-chat/${this.idGenerator.next()}.${validated.extension}`;
-      await this.storage.putObject({
-        bucket: this.bucket,
-        key: imageKey,
-        body: input.image.buffer,
-        contentType: validated.mimeType,
-      });
-      imageUrl = this.storage.getPublicUrl(this.bucket, imageKey);
-      imageExpiresAt = new Date(now.getTime() + AI_IMAGE_RETENTION_MS);
       imagePayloadForAi = {
         base64: input.image.buffer.toString('base64'),
         mimeType: validated.mimeType,
       };
+
+      if (this.storage.isConfigured?.() !== false) {
+        const candidateKey = `ai-chat/${this.idGenerator.next()}.${validated.extension}`;
+        try {
+          await this.storage.putObject({
+            bucket: this.bucket,
+            key: candidateKey,
+            body: input.image.buffer,
+            contentType: validated.mimeType,
+          });
+          imageKey = candidateKey;
+          imageUrl = this.storage.getPublicUrl(this.bucket, candidateKey);
+          imageExpiresAt = new Date(now.getTime() + AI_IMAGE_RETENTION_MS);
+        } catch (storageErr) {
+          console.warn(
+            `[SendAiMessageUseCase] Failed to persist AI chat image to object storage (continuing with in-memory image for AI): ${
+              storageErr instanceof Error ? storageErr.message : String(storageErr)
+            }`,
+          );
+        }
+      } else {
+        console.warn(
+          '[SendAiMessageUseCase] Object storage is not configured in production; processing AI timetable image in-memory without persisting preview URL.',
+        );
+      }
     }
 
     try {
@@ -150,6 +168,37 @@ export class SendAiMessageUseCase {
         this.noteRepo.findByAccount(input.accountId, { limit: 100 }),
         this.chatMessageRepo.findByAccount(input.accountId, 10),
       ]);
+
+      // Multi-turn image recall: if no new image was attached in this turn, re-attach the most recent
+      // unexpired image from recent chat turns (before any applied draft) so follow-up rules work seamlessly.
+      if (!imagePayloadForAi && this.storage.getObjectBuffer) {
+        const tail = recentHistory.slice(-6);
+        for (let idx = tail.length - 1; idx >= 0; idx--) {
+          const histMsg = tail[idx];
+          if (histMsg.draft?.status === 'applied') {
+            break;
+          }
+          if (histMsg.role === 'user' && histMsg.imageKey && !histMsg.isImageExpired(now)) {
+            const stored = await this.storage.getObjectBuffer(this.bucket, histMsg.imageKey);
+            if (stored && stored.body.length > 0) {
+              try {
+                const validatedPrev = validateAiChatImage(
+                  stored.body,
+                  stored.body.length,
+                  stored.contentType,
+                );
+                imagePayloadForAi = {
+                  base64: stored.body.toString('base64'),
+                  mimeType: validatedPrev.mimeType,
+                };
+              } catch {
+                // Ignore corrupted/unsupported cached image
+              }
+            }
+            break;
+          }
+        }
+      }
 
       const classSessionsContext = resolveEffectiveClassSessions(
         activeSlots,
@@ -170,13 +219,34 @@ export class SendAiMessageUseCase {
         isAdHoc: s.isAdHoc,
       }));
 
+      const formattedHistory = recentHistory.map((m) => {
+        if (m.role === 'assistant' && m.draft && m.draft.items.length > 0) {
+          const compactItems = m.draft.items.slice(0, 40).map((it) => ({
+            kind: it.kind,
+            action: it.action ?? 'create',
+            category: it.category,
+            titleOrSubject: it.titleOrSubject,
+            grade: it.grade ?? null,
+            weekday: it.weekday ?? null,
+            date: it.date ?? null,
+            startTime: it.startTime ?? null,
+            endTime: it.endTime ?? null,
+          }));
+          return {
+            role: m.role,
+            content: `${m.content}\n[Draft ${m.draft.status}: ${JSON.stringify(compactItems)}]`,
+          };
+        }
+        return {
+          role: m.role,
+          content: m.content,
+        };
+      });
+
       const aiReply = await this.aiAssistant.generateReply({
         message: trimmedMessage || undefined,
         image: imagePayloadForAi,
-        history: recentHistory.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
+        history: formattedHistory,
         context: {
           accountId: input.accountId,
           today,
@@ -232,13 +302,15 @@ export class SendAiMessageUseCase {
           generateId: () => this.idGenerator.next(),
         });
 
-        draft = {
-          status: 'pending',
-          appliedAt: null,
-          conflictStrategy: null,
-          summary: null,
-          items: processedItems,
-        };
+        if (processedItems.length > 0) {
+          draft = {
+            status: 'pending',
+            appliedAt: null,
+            conflictStrategy: null,
+            summary: null,
+            items: processedItems,
+          };
+        }
       }
 
       const userMessage = AiChatMessage.create({
@@ -268,8 +340,10 @@ export class SendAiMessageUseCase {
         now: assistantCreatedAt,
       });
 
-      await this.chatMessageRepo.save(userMessage);
-      await this.chatMessageRepo.save(assistantMessage);
+      await Promise.all([
+        this.chatMessageRepo.save(userMessage),
+        this.chatMessageRepo.save(assistantMessage),
+      ]);
 
       return {
         userMessage: toAiChatMessageDto(userMessage),

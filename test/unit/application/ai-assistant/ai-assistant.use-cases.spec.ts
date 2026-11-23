@@ -344,6 +344,66 @@ describe('AI Assistant Use Cases (Seam 3)', () => {
       expect(aiPort.calls[0].context.timetableSlots).toEqual([]);
       expect(aiPort.calls[0].context.classSessions).toEqual([]);
     });
+
+    it('gracefully processes timetable image in-memory when object storage is unconfigured or unavailable', async () => {
+      storage.configured = false;
+      aiPort.setNextReply({
+        reply: 'Đã đọc ảnh TKB thành công ngay cả khi chưa cấu hình S3.',
+        draftItems: [
+          {
+            id: 'mem-1',
+            kind: 'timetable_slot',
+            category: 'school_teaching',
+            titleOrSubject: 'Toán 6A10',
+            weekday: 1,
+            startTime: '07:00',
+            endTime: '07:45',
+          },
+        ],
+      });
+
+      const res = await sendAiMessageUseCase.execute({
+        accountId: teacherId,
+        message: 'Lên lịch theo ảnh này',
+        image: { buffer: validJpeg, size: validJpeg.length, mimeType: 'image/jpeg' },
+      });
+
+      expect(storage.putCalls).toHaveLength(0);
+      expect(res.userMessage.imageUrl).toBeNull();
+      expect(aiPort.calls[0].image?.base64).toBe(validJpeg.toString('base64'));
+      expect(res.assistantMessage.draft?.items).toHaveLength(1);
+    });
+
+    it('re-attaches recent unexpired image from chat history on follow-up turn before draft is applied', async () => {
+      aiPort.setNextReply({ reply: 'Tôi đã thấy ảnh, bạn muốn phân loại buổi sáng/chiều thế nào?' });
+      await sendAiMessageUseCase.execute({
+        accountId: teacherId,
+        image: { buffer: validJpeg, size: validJpeg.length, mimeType: 'image/jpeg' },
+      });
+
+      aiPort.setNextReply({
+        reply: 'Đã tạo lịch theo quy tắc sáng trên lớp, chiều dạy thêm.',
+        draftItems: [
+          {
+            id: 'follow-1',
+            kind: 'timetable_slot',
+            category: 'extra_teaching',
+            titleOrSubject: 'L7',
+            weekday: 1,
+            startTime: '13:30',
+            endTime: '14:15',
+          },
+        ],
+      });
+
+      await sendAiMessageUseCase.execute({
+        accountId: teacherId,
+        message: 'Lịch sáng là trên lớp, lịch chiều là dạy thêm. Lên lịch giúp tôi.',
+      });
+
+      expect(aiPort.calls).toHaveLength(2);
+      expect(aiPort.calls[1].image?.base64).toBe(validJpeg.toString('base64'));
+    });
   });
 
   describe('ApplyAiScheduleDraftUseCase', () => {
@@ -533,6 +593,209 @@ describe('AI Assistant Use Cases (Seam 3)', () => {
           conflictStrategy: 'replace_conflicts',
         }),
       ).rejects.toThrow(AiDraftAlreadyAppliedError);
+    });
+
+    it('replace_all_timetable: ends/deletes all old active slots including cells that became empty in the new timetable', async () => {
+      const slotKeptTime = TimetableSlot.create({
+        id: '20000000-0000-4000-8000-000000000001',
+        accountId: teacherId,
+        weekday: 1,
+        startTime: '07:00',
+        endTime: '07:45',
+        subject: 'HĐTN 8A13 (Cũ)',
+        tone: 'pink',
+        category: 'school_teaching',
+        effectiveFrom: '2026-09-01',
+        now: fixedNow,
+      });
+      const slotNowEmpty = TimetableSlot.create({
+        id: '20000000-0000-4000-8000-000000000002',
+        accountId: teacherId,
+        weekday: 3,
+        startTime: '10:30',
+        endTime: '11:15',
+        subject: 'Toán 6A12 (Bỏ trống ở TKB mới)',
+        tone: 'blue',
+        category: 'school_teaching',
+        effectiveFrom: '2026-09-01',
+        now: fixedNow,
+      });
+      await slotRepo.save(slotKeptTime);
+      await slotRepo.save(slotNowEmpty);
+
+      aiPort.setNextReply({
+        reply: 'Bản nháp TKB mới',
+        draftItems: [
+          {
+            id: 'new-tkb-1',
+            kind: 'timetable_slot',
+            action: 'create',
+            category: 'school_teaching',
+            titleOrSubject: 'Toán 8A13 (Mới)',
+            weekday: 1,
+            startTime: '07:00',
+            endTime: '07:45',
+            effectiveFrom: '2026-10-29',
+            tone: 'blue',
+          },
+        ],
+      });
+
+      const { assistantMessage } = await sendAiMessageUseCase.execute({
+        accountId: teacherId,
+        message: 'Cập nhật ảnh TKB mới',
+      });
+
+      const applied = await applyDraftUseCase.execute({
+        accountId: teacherId,
+        messageId: assistantMessage.id,
+        conflictStrategy: 'replace_all_timetable',
+      });
+
+      expect(applied.summary).toEqual({
+        createdCount: 1,
+        replacedCount: 2,
+        skippedCount: 0,
+      });
+
+      // Both old slots were ended at yesterday (2026-10-28), preserving past history
+      expect((await slotRepo.findById(slotKeptTime.id))?.effectiveTo).toBe('2026-10-28');
+      expect((await slotRepo.findById(slotNowEmpty.id))?.effectiveTo).toBe('2026-10-28');
+    });
+
+    it('supports detailed timetable_slot update/delete and single-session cancel + reschedule', async () => {
+      const slotToMove = TimetableSlot.create({
+        id: '30000000-0000-4000-8000-000000000001',
+        accountId: teacherId,
+        weekday: 1,
+        startTime: '08:50',
+        endTime: '09:35',
+        subject: 'Toán 6A10',
+        grade: '6A10',
+        tone: 'blue',
+        category: 'school_teaching',
+        effectiveFrom: '2026-09-01',
+        now: fixedNow,
+      });
+      const slotToDelete = TimetableSlot.create({
+        id: '30000000-0000-4000-8000-000000000002',
+        accountId: teacherId,
+        weekday: 5,
+        startTime: '13:30',
+        endTime: '14:15',
+        subject: 'L9',
+        tone: 'mint',
+        category: 'extra_teaching',
+        effectiveFrom: '2026-10-29',
+        now: fixedNow,
+      });
+      const slotForSingleCancel = TimetableSlot.create({
+        id: '30000000-0000-4000-8000-000000000003',
+        accountId: teacherId,
+        weekday: 4, // Thursday 2026-10-29
+        startTime: '13:30',
+        endTime: '14:15',
+        subject: 'L7',
+        tone: 'mint',
+        category: 'extra_teaching',
+        effectiveFrom: '2026-09-01',
+        now: fixedNow,
+      });
+      await slotRepo.save(slotToMove);
+      await slotRepo.save(slotToDelete);
+      await slotRepo.save(slotForSingleCancel);
+
+      aiPort.setNextReply({
+        reply: 'Đã chuẩn bị bản nháp cập nhật chi tiết',
+        draftItems: [
+          {
+            id: 'act-update',
+            kind: 'timetable_slot',
+            action: 'update',
+            targetSlotId: slotToMove.id,
+            category: 'school_teaching',
+            titleOrSubject: 'Toán 6A10',
+            grade: '6A10',
+            weekday: 4,
+            startTime: '07:00',
+            endTime: '07:45',
+            tone: 'blue',
+          },
+          {
+            id: 'act-delete',
+            kind: 'timetable_slot',
+            action: 'delete',
+            targetSlotId: slotToDelete.id,
+            category: 'extra_teaching',
+            titleOrSubject: 'L9',
+          },
+          {
+            id: 'act-cancel-one',
+            kind: 'class_session',
+            action: 'cancel',
+            targetSessionId: `${slotForSingleCancel.id}:2026-10-29`,
+            category: 'extra_teaching',
+            titleOrSubject: 'L7',
+            date: '2026-10-29',
+          },
+          {
+            id: 'act-reschedule-one',
+            kind: 'class_session',
+            action: 'create',
+            category: 'extra_teaching',
+            titleOrSubject: 'L7 (Bù)',
+            date: '2026-10-30',
+            startTime: '19:00',
+            endTime: '20:30',
+            tone: 'mint',
+          },
+        ],
+      });
+
+      const { assistantMessage } = await sendAiMessageUseCase.execute({
+        accountId: teacherId,
+        message: 'Đổi Toán 6A10 sang Thứ 5 tiết 1, xóa L9 chiều T6, dời buổi L7 hôm nay sang tối mai',
+      });
+
+      const applied = await applyDraftUseCase.execute({
+        accountId: teacherId,
+        messageId: assistantMessage.id,
+        conflictStrategy: 'replace_conflicts',
+      });
+
+      expect(applied.summary).toEqual({
+        createdCount: 1,
+        replacedCount: 0,
+        skippedCount: 0,
+        updatedCount: 1,
+        deletedCount: 1,
+        cancelledCount: 1,
+      });
+
+      // Moved slot split: old ended at 2026-10-28, new created at weekday=4 07:00-07:45
+      expect((await slotRepo.findById(slotToMove.id))?.effectiveTo).toBe('2026-10-28');
+      const allActive = await slotRepo.findActiveByAccount(teacherId);
+      const movedNew = allActive.find(
+        (s) => s.subject === 'Toán 6A10' && s.weekday === 4 && s.startTime === '07:00',
+      );
+      expect(movedNew).toBeDefined();
+
+      // Deleted slot (started today) soft-deleted
+      expect((await slotRepo.findById(slotToDelete.id))?.isDeleted()).toBe(true);
+
+      // Single occurrence cancelled via override
+      const cancelledOverride = await sessionRepo.findById(`${slotForSingleCancel.id}:2026-10-29`);
+      expect(cancelledOverride?.cancelled).toBe(true);
+
+      // Rescheduled ad-hoc session created on 2026-10-30
+      const sessionsOn30 = await sessionRepo.findByAccountAndDateRange(
+        teacherId,
+        '2026-10-30',
+        '2026-10-30',
+      );
+      expect(sessionsOn30.some((s) => s.subject === 'L7 (Bù)' && s.startTime === '19:00')).toBe(
+        true,
+      );
     });
   });
 

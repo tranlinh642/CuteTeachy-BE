@@ -8,6 +8,7 @@ import { Email } from '../../../src/domain/account/email.vo';
 import { Profile } from '../../../src/domain/account/profile.entity';
 import {
   FileTooLargeError,
+  StorageNotConfiguredError,
   UnsupportedFileTypeError,
 } from '../../../src/domain/avatar/avatar.errors';
 import { UnauthorizedError } from '../../../src/domain/account/account.errors';
@@ -198,5 +199,18 @@ describe('UploadAvatarUseCase', () => {
 
     expect(storage.deleteCalls).toHaveLength(0);
     expect(user.avatarUrl).toMatch(/^http:\/\/localhost:9000\/avatars\//);
+  });
+
+  it('throws StorageNotConfiguredError (503) when object storage is not configured in production', async () => {
+    await createTestAccount('acc-unconfigured');
+    storage.configured = false;
+
+    await expect(
+      useCase.execute({
+        accountId: 'acc-unconfigured',
+        file: { buffer: validJpeg, size: validJpeg.length },
+      }),
+    ).rejects.toThrow(StorageNotConfiguredError);
+    expect(storage.putCalls).toHaveLength(0);
   });
 });
