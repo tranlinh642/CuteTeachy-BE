@@ -6,6 +6,7 @@ import {
 import { addDaysToDateString } from '../timetable/timetable-date.helper';
 import { TimetableSlot } from '../timetable/timetable-slot.entity';
 import {
+  AiDraftItemAction,
   AiDraftItemKind,
   AiScheduleDraftItem,
   validateAiScheduleDraftItem,
@@ -49,37 +50,99 @@ export interface EnrichDraftItemsOptions {
   generateId: () => string;
 }
 
+function formatSlotSummary(slot: TimetableSlot): string {
+  const gradePart = slot.grade ? ` ${slot.grade}` : '';
+  return `${slot.subject}${gradePart} (${slot.startTime}–${slot.endTime})`;
+}
+
 export function enrichDraftItemsWithConflicts(
   rawItems: readonly Partial<AiScheduleDraftItem>[],
   options: EnrichDraftItemsOptions,
 ): AiScheduleDraftItem[] {
   const { today, activeSlots, generateId } = options;
+  const slotById = new Map(activeSlots.map((slot) => [slot.id, slot]));
 
-  return rawItems.map((rawItem) => {
-    const normalized = validateAiScheduleDraftItem({
-      ...rawItem,
-      id: rawItem.id || generateId(),
-      kind: rawItem.kind as AiDraftItemKind,
-      titleOrSubject: rawItem.titleOrSubject ?? '',
-      category: rawItem.category ?? 'school_teaching',
-      tone: rawItem.tone ?? 'blue',
-      effectiveFrom:
-        rawItem.kind === 'timetable_slot'
-          ? (rawItem.effectiveFrom ?? today)
-          : (rawItem.effectiveFrom ?? null),
-      date:
-        rawItem.kind === 'class_session' || rawItem.kind === 'task'
-          ? (rawItem.date ?? today)
-          : (rawItem.date ?? null),
-    });
+  const enriched: AiScheduleDraftItem[] = [];
+
+  for (const rawItem of rawItems) {
+    const action: AiDraftItemAction = rawItem.action ?? 'create';
+    let normalized: AiScheduleDraftItem;
+    try {
+      normalized = validateAiScheduleDraftItem({
+        ...rawItem,
+        id: rawItem.id || generateId(),
+        kind: rawItem.kind as AiDraftItemKind,
+        action,
+        targetSlotId: rawItem.targetSlotId ?? null,
+        targetSessionId: rawItem.targetSessionId ?? null,
+        targetSummary: rawItem.targetSummary ?? null,
+        titleOrSubject: rawItem.titleOrSubject ?? '',
+        category: rawItem.category ?? 'school_teaching',
+        tone: rawItem.tone ?? 'blue',
+        effectiveFrom:
+          rawItem.kind === 'timetable_slot'
+            ? (rawItem.effectiveFrom ?? today)
+            : (rawItem.effectiveFrom ?? null),
+        date:
+          rawItem.kind === 'class_session' || rawItem.kind === 'task'
+            ? (rawItem.date ?? today)
+            : (rawItem.date ?? null),
+      });
+    } catch {
+      // Skip malformed individual item from LLM rather than aborting the whole reply
+      continue;
+    }
+
+    // Resolve target metadata for update / delete / cancel actions
+    if (normalized.kind === 'timetable_slot' && (action === 'update' || action === 'delete')) {
+      let targetSlot = normalized.targetSlotId ? slotById.get(normalized.targetSlotId) : undefined;
+      if (!targetSlot && normalized.weekday && normalized.startTime && normalized.endTime) {
+        targetSlot = activeSlots.find(
+          (slot) =>
+            !slot.isDeleted() &&
+            slot.weekday === normalized.weekday &&
+            slot.startTime === normalized.startTime &&
+            slot.endTime === normalized.endTime,
+        );
+        if (targetSlot) {
+          normalized.targetSlotId = targetSlot.id;
+        }
+      }
+      if (targetSlot && !normalized.targetSummary) {
+        normalized.targetSummary = formatSlotSummary(targetSlot);
+      }
+    }
+
+    if (
+      normalized.kind === 'class_session' &&
+      (action === 'cancel' || action === 'delete' || action === 'update')
+    ) {
+      if (!normalized.targetSessionId && normalized.targetSlotId && normalized.date) {
+        normalized.targetSessionId = `${normalized.targetSlotId}:${normalized.date}`;
+      }
+      if (normalized.targetSessionId && normalized.targetSessionId.includes(':')) {
+        const [slotId] = normalized.targetSessionId.split(':');
+        const targetSlot = slotById.get(slotId);
+        if (targetSlot) {
+          if (!normalized.targetSlotId) {
+            normalized.targetSlotId = targetSlot.id;
+          }
+          if (!normalized.targetSummary) {
+            normalized.targetSummary = formatSlotSummary(targetSlot);
+          }
+        }
+      }
+    }
 
     if (
       normalized.kind === 'timetable_slot' &&
+      (action === 'create' || action === 'update') &&
       normalized.weekday &&
       normalized.startTime &&
       normalized.endTime
     ) {
       const candidate: CandidateSlot = {
+        id: action === 'update' && normalized.targetSlotId ? normalized.targetSlotId : undefined,
         weekday: normalized.weekday,
         startTime: normalized.startTime,
         endTime: normalized.endTime,
@@ -101,6 +164,8 @@ export function enrichDraftItemsWithConflicts(
       normalized.conflict = null;
     }
 
-    return normalized;
-  });
+    enriched.push(normalized);
+  }
+
+  return enriched;
 }

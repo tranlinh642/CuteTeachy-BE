@@ -974,7 +974,26 @@ describe('Class Sessions E2E (HTTP API with real Postgres)', () => {
 
     it('returns all current sessions and deletedIds for defunct sessions when slot was ended/split', async () => {
       const { token } = await createTeacher('teacher.delta3@example.com');
-      // Create slot S1 on Monday (weekday 1) effective 2026-10-01 to 2026-11-30
+      const addDaysUtc = (base: Date, days: number): string => {
+        const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + days));
+        return d.toISOString().slice(0, 10);
+      };
+      const now = new Date();
+      // Find a past Monday (at least 14 days ago) and a future Monday (at least 7 days ahead)
+      const pastBase = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 14));
+      const pastDow = pastBase.getUTCDay(); // 0=Sun..6=Sat
+      const pastMonOffset = (1 - pastDow + 7) % 7 - 7;
+      const pastMonday = addDaysUtc(pastBase, pastMonOffset);
+      const effectiveFrom = addDaysUtc(pastBase, pastMonOffset - 7);
+
+      const futureBase = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 7));
+      const futureDow = futureBase.getUTCDay();
+      const futureMonOffset = (1 - futureDow + 7) % 7;
+      const futureMonday = addDaysUtc(futureBase, futureMonOffset);
+      const rangeTo = addDaysUtc(futureBase, futureMonOffset + 6);
+      const effectiveTo = addDaysUtc(futureBase, futureMonOffset + 28);
+
+      // Create slot S1 on Monday (weekday 1) spanning past to future
       const slotId = '11111111-1111-4111-8111-111111111111';
       await request(app.getHttpServer())
         .post('/timetable-slots')
@@ -986,14 +1005,14 @@ describe('Class Sessions E2E (HTTP API with real Postgres)', () => {
           endTime: '08:15',
           subject: 'Sinh học',
           tone: 'blue',
-          effectiveFrom: '2026-10-01',
-          effectiveTo: '2026-11-30',
+          effectiveFrom,
+          effectiveTo,
         })
         .expect(201);
 
       // Checkpoint
       const syncRes = await request(app.getHttpServer())
-        .get('/class-sessions?from=2026-10-26&to=2026-11-08')
+        .get(`/class-sessions?from=${pastMonday}&to=${rangeTo}`)
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
       const checkpoint = syncRes.body.serverTime;
@@ -1008,23 +1027,35 @@ describe('Class Sessions E2E (HTTP API with real Postgres)', () => {
         })
         .expect(200);
 
-      // Query delta sync across 2 weeks
+      // Query delta sync across past and future range
       const deltaRes = await request(app.getHttpServer())
-        .get(`/class-sessions?from=2026-10-26&to=2026-11-08&updatedSince=${encodeURIComponent(checkpoint)}`)
+        .get(`/class-sessions?from=${pastMonday}&to=${rangeTo}&updatedSince=${encodeURIComponent(checkpoint)}`)
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
       expect(deltaRes.body.items.length).toBeGreaterThanOrEqual(1);
 
-      // Defunct session: Monday session in week 2 from previous slot
-      expect(deltaRes.body.deletedIds).toContain(`${slotId}:2026-11-02`);
+      // Defunct session: future Monday session from previous ended slot
+      expect(deltaRes.body.deletedIds).toContain(`${slotId}:${futureMonday}`);
     });
 
     it('returns deletedIds for all sessions of a slot when soft-deleted', async () => {
       const { token } = await createTeacher('teacher.delta4@example.com');
-      // Create future slot (effectiveFrom in future so DELETE performs soft-delete)
-      const futureFrom = '2026-11-01';
-      const futureTo = '2026-11-30';
+      const addDaysUtc = (base: Date, days: number): string => {
+        const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + days));
+        return d.toISOString().slice(0, 10);
+      };
+      const now = new Date();
+      // Pick two consecutive future Mondays so DELETE performs soft-delete (no past sessions)
+      const futureBase = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 14));
+      const futureDow = futureBase.getUTCDay();
+      const monOffset = (1 - futureDow + 7) % 7;
+      const futureMon1 = addDaysUtc(futureBase, monOffset);
+      const futureMon2 = addDaysUtc(futureBase, monOffset + 7);
+      const queryTo = addDaysUtc(futureBase, monOffset + 9);
+      const futureFrom = futureMon1;
+      const futureTo = addDaysUtc(futureBase, monOffset + 21);
+
       const slotId = '11111111-1111-4111-8111-111111111111';
       await request(app.getHttpServer())
         .post('/timetable-slots')
@@ -1042,7 +1073,7 @@ describe('Class Sessions E2E (HTTP API with real Postgres)', () => {
         .expect(201);
 
       const syncRes = await request(app.getHttpServer())
-        .get('/class-sessions?from=2026-11-01&to=2026-11-15')
+        .get(`/class-sessions?from=${futureMon1}&to=${queryTo}`)
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
       const checkpoint = syncRes.body.serverTime;
@@ -1056,15 +1087,14 @@ describe('Class Sessions E2E (HTTP API with real Postgres)', () => {
 
       // Query delta sync
       const deltaRes = await request(app.getHttpServer())
-        .get(`/class-sessions?from=2026-11-01&to=2026-11-15&updatedSince=${encodeURIComponent(checkpoint)}`)
+        .get(`/class-sessions?from=${futureMon1}&to=${queryTo}&updatedSince=${encodeURIComponent(checkpoint)}`)
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
       expect(deltaRes.body.items).toHaveLength(0);
-      // Mondays in 2026-11-01 to 2026-11-15: 2026-11-02 and 2026-11-09
       expect(deltaRes.body.deletedIds).toEqual([
-        `${slotId}:2026-11-02`,
-        `${slotId}:2026-11-09`,
+        `${slotId}:${futureMon1}`,
+        `${slotId}:${futureMon2}`,
       ].sort());
     });
   });

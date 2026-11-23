@@ -1,14 +1,20 @@
 import {
   ObjectStorage,
   PutObjectOptions,
+  StoredObjectData,
 } from '../../src/application/avatar/ports/object-storage.port';
 
 export class FakeObjectStorage implements ObjectStorage {
   private readonly storage = new Map<string, { body: Buffer; contentType: string }>();
   public readonly putCalls: PutObjectOptions[] = [];
   public readonly deleteCalls: { bucket: string; key: string }[] = [];
+  public configured = true;
 
   constructor(private readonly publicBaseUrl = 'http://localhost:9000/avatars') {}
+
+  isConfigured(): boolean {
+    return this.configured;
+  }
 
   async putObject(options: PutObjectOptions): Promise<void> {
     this.putCalls.push({ ...options });
@@ -17,6 +23,17 @@ export class FakeObjectStorage implements ObjectStorage {
       body: options.body,
       contentType: options.contentType,
     });
+  }
+
+  async getObjectBuffer(bucket: string, key: string): Promise<StoredObjectData | null> {
+    const found = this.storage.get(`${bucket}/${key}`);
+    if (!found) {
+      return null;
+    }
+    return {
+      body: found.body,
+      contentType: found.contentType,
+    };
   }
 
   async deleteObject(bucket: string, key: string): Promise<void> {

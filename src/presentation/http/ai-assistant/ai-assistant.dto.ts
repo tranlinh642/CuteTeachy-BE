@@ -12,8 +12,10 @@ import {
 } from 'class-validator';
 import {
   AI_CONFLICT_STRATEGIES,
+  AI_DRAFT_ITEM_ACTIONS,
   AI_DRAFT_ITEM_KINDS,
   AiConflictStrategy,
+  AiDraftItemAction,
   AiDraftItemKind,
 } from '../../../domain/ai-assistant/ai-schedule-draft.vo';
 import {
@@ -58,6 +60,22 @@ export class AiScheduleDraftItemRequestDto {
 
   @IsIn(AI_DRAFT_ITEM_KINDS)
   kind!: AiDraftItemKind;
+
+  @IsOptional()
+  @IsIn(AI_DRAFT_ITEM_ACTIONS)
+  action?: AiDraftItemAction;
+
+  @IsOptional()
+  @IsString()
+  targetSlotId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  targetSessionId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  targetSummary?: string | null;
 
   @IsIn(SCHEDULE_CATEGORIES)
   category!: ScheduleCategory;
@@ -116,7 +134,8 @@ export class AiScheduleDraftItemRequestDto {
 
 export class ApplyAiScheduleDraftRequestDto {
   @IsIn(AI_CONFLICT_STRATEGIES, {
-    message: 'conflictStrategy must be replace_conflicts or skip_conflicts',
+    message:
+      'conflictStrategy must be replace_conflicts, skip_conflicts, or replace_all_timetable',
   })
   conflictStrategy!: AiConflictStrategy;
 

@@ -99,6 +99,10 @@ describe('GeminiAiAssistantAdapter & AiChatMessageMapper', () => {
     const body = JSON.parse(String(init?.body));
     expect(body.generationConfig.responseMimeType).toBe('application/json');
     expect(body.generationConfig.responseSchema).toBeDefined();
+    expect(body.generationConfig.maxOutputTokens).toBe(16384);
+    expect(
+      body.generationConfig.responseSchema.properties.draftItems.items.properties.action.enum,
+    ).toEqual(['create', 'update', 'delete', 'cancel']);
     const sysInstruction = body.systemInstruction?.parts?.[0]?.text ?? '';
     expect(sysInstruction).toContain('LLM GUARDRAILS');
     expect(sysInstruction).toContain('Phân quyền & Cô lập dữ liệu');
@@ -108,6 +112,53 @@ describe('GeminiAiAssistantAdapter & AiChatMessageMapper', () => {
     expect(output.reply).toContain('07:00-07:45');
     expect(output.draftItems).toHaveLength(1);
     expect(output.draftItems?.[0].titleOrSubject).toBe('Toán 9A');
+  });
+
+  it('ignores thought parts and extracts final JSON text part from Gemini thinking responses', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        candidates: [
+          {
+            content: {
+              parts: [
+                { thought: true, text: 'Internal chain of thought...' },
+                {
+                  text: JSON.stringify({
+                    reply: 'Đã hủy tiết 1 Thứ 4 tuần này.',
+                    draftItems: [
+                      {
+                        id: 'cancel-1',
+                        kind: 'class_session',
+                        action: 'cancel',
+                        targetSessionId: 'slot-1:2026-10-29',
+                        category: 'school_teaching',
+                        titleOrSubject: 'Toán 8A13',
+                        date: '2026-10-29',
+                      },
+                    ],
+                  }),
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    } as unknown as Response);
+
+    const adapter = new GeminiAiAssistantAdapter({
+      GEMINI_API_KEY: 'test-gemini-key',
+      GEMINI_MODEL: 'gemini-2.5-flash',
+    } as AppConfig);
+
+    const output = await adapter.generateReply({
+      message: 'Nghỉ tiết 1 hôm nay',
+      context: baseContext,
+    });
+
+    expect(output.reply).toBe('Đã hủy tiết 1 Thứ 4 tuần này.');
+    expect(output.draftItems?.[0]?.action).toBe('cancel');
   });
 
   it('throws AiProviderError when Gemini upstream returns non-OK HTTP status', async () => {

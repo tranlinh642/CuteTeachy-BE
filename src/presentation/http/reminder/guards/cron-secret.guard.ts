@@ -19,8 +19,16 @@ export class CronSecretGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
-    const cronSecretHeader =
+    let cronSecretHeader =
       request?.headers?.['x-cron-secret'] || request?.headers?.['X-Cron-Secret'];
+
+    if (!cronSecretHeader) {
+      const authHeader =
+        request?.headers?.authorization || request?.headers?.Authorization;
+      if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+        cronSecretHeader = authHeader.slice(7).trim();
+      }
+    }
 
     if (!cronSecretHeader || typeof cronSecretHeader !== 'string') {
       throw new UnauthorizedException('Missing X-Cron-Secret header');

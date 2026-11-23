@@ -94,6 +94,20 @@ describe('GlobalExceptionFilter', () => {
     });
   });
 
+  it('maps PayloadTooLargeException (413) from multer to code "file_too_large"', () => {
+    const error = new HttpException(
+      { statusCode: 413, error: 'Payload Too Large', message: 'File too large' },
+      HttpStatus.PAYLOAD_TOO_LARGE,
+    );
+    filter.catch(error, mockHost);
+
+    expect(mockStatus).toHaveBeenCalledWith(HttpStatus.PAYLOAD_TOO_LARGE);
+    expect(mockJson).toHaveBeenCalledWith({
+      code: 'file_too_large',
+      message: 'File too large',
+    });
+  });
+
   it('maps unhandled error to 500 with code "unknown" without exposing stack', () => {
     const error = new Error('Unexpected database connection crash with secret /etc/passwd');
     filter.catch(error, mockHost);

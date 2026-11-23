@@ -6,8 +6,13 @@ import { OnboardingRequiredError, UnauthorizedError } from '../../../domain/acco
 import { IS_PUBLIC_KEY } from './public.decorator';
 import { IS_EXEMPT_ONBOARDING_KEY } from './exempt-onboarding.decorator';
 
+const ONBOARDED_CACHE_TTL_MS = 5 * 60 * 1000;
+const ONBOARDED_CACHE_MAX_SIZE = 5000;
+
 @Injectable()
 export class OnboardingGuard implements CanActivate {
+  private readonly onboardedAccounts = new Map<string, number>();
+
   constructor(
     private readonly reflector: Reflector,
     private readonly getMeUseCase: GetMeUseCase,
@@ -46,10 +51,21 @@ export class OnboardingGuard implements CanActivate {
       throw new UnauthorizedError('Unauthorized');
     }
 
+    const now = Date.now();
+    const cachedExpiresAt = this.onboardedAccounts.get(userId);
+    if (cachedExpiresAt !== undefined && cachedExpiresAt > now) {
+      return true;
+    }
+
     const user = await this.getMeUseCase.execute({ accountId: userId });
     if (!user.onboardingCompletedAt) {
       throw new OnboardingRequiredError('Onboarding required');
     }
+
+    if (this.onboardedAccounts.size >= ONBOARDED_CACHE_MAX_SIZE) {
+      this.onboardedAccounts.clear();
+    }
+    this.onboardedAccounts.set(userId, now + ONBOARDED_CACHE_TTL_MS);
 
     return true;
   }

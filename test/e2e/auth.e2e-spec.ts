@@ -529,6 +529,7 @@ describe('Auth & Account E2E', () => {
 
       const res = await request(app.getHttpServer())
         .post('/auth/login')
+        .set('x-forwarded-for', '127.0.0.1')
         .send({
           email: 'teacher@example.com',
           password: 'password123',
@@ -549,6 +550,7 @@ describe('Auth & Account E2E', () => {
 
       const res = await request(app.getHttpServer())
         .post('/auth/register')
+        .set('x-forwarded-for', '127.0.0.1')
         .send({
           email: 'another@example.com',
           password: 'password123',
@@ -569,6 +571,7 @@ describe('Auth & Account E2E', () => {
 
       const res = await request(app.getHttpServer())
         .post('/auth/refresh')
+        .set('x-forwarded-for', '127.0.0.1')
         .send({
           refreshToken: 'dummy-token',
         })

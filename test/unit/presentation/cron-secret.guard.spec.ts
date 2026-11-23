@@ -52,6 +52,14 @@ describe('CronSecretGuard', () => {
     expect(guard.canActivate(ctx)).toBe(true);
   });
 
+  it('allows request when Authorization Bearer header matches config (Vercel Cron format)', () => {
+    const ctx = createMockContext({
+      authorization: `Bearer ${expectedSecret}`,
+    });
+
+    expect(guard.canActivate(ctx)).toBe(true);
+  });
+
   it('throws UnauthorizedException when header is missing', () => {
     const ctx = createMockContext({});
 

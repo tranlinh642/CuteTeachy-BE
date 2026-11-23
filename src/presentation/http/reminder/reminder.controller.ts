@@ -1,4 +1,4 @@
-import { Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { DispatchRemindersUseCase } from '../../../application/reminder/dispatch-reminders.use-case';
 import { CronSecretGuard } from './guards/cron-secret.guard';
 import { Public } from '../auth/public.decorator';
@@ -18,5 +18,13 @@ export class ReminderController {
       sent: result.sent,
       skipped: result.skipped,
     };
+  }
+
+  @Get('dispatch')
+  @Public()
+  @UseGuards(CronSecretGuard)
+  @HttpCode(HttpStatus.OK)
+  async dispatchViaGet(): Promise<DispatchRemindersResponseDto> {
+    return this.dispatch();
   }
 }
