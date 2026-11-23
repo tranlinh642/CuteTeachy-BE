@@ -176,7 +176,7 @@ describe('HandleGoogleCallbackUseCase', () => {
       );
     });
 
-    it('links Google to existing Account when email matches existing password account', async () => {
+    it('links Google to existing verified Account when email matches existing password account', async () => {
       stateSigner.verify.mockReturnValue({ remember: false, nonce: 'nonce-2' });
       googleClient.getUserInfo.mockResolvedValue(verifiedGoogleUser);
       accountRepo.findByProviderSubject.mockResolvedValue(null);
@@ -186,6 +186,7 @@ describe('HandleGoogleCallbackUseCase', () => {
         email: Email.create('teacher.cute@gmail.com'),
         profileId: 'existing-prof-id',
       });
+      existingAccount.verifyEmail(new Date('2026-10-20T00:00:00Z'));
       accountRepo.findByEmail.mockResolvedValue(existingAccount);
 
       const result = await useCase.execute({
@@ -197,6 +198,7 @@ describe('HandleGoogleCallbackUseCase', () => {
       expect(accountRepo.findByEmail).toHaveBeenCalledWith('teacher.cute@gmail.com');
       expect(accountRepo.createWithGoogle).not.toHaveBeenCalled();
       expect(accountRepo.linkGoogleProvider).toHaveBeenCalledWith('existing-acc-id', 'google-sub-100');
+      expect(existingAccount.loginProviders).toEqual(['password', 'google']);
 
       expect(exchangeCodeRepo.create).toHaveBeenCalledWith({
         id: expect.any(String),
@@ -206,6 +208,36 @@ describe('HandleGoogleCallbackUseCase', () => {
         expiresAt: new Date(fixedNow.getTime() + 60 * 1000),
       });
 
+      expect(result.redirectUrl).toBe(
+        'http://localhost:3000/auth/callback?code=random-one-time-code-12345',
+      );
+    });
+
+    it('verifies email and clears unverified password when linking Google to an unverified password account (BE-01)', async () => {
+      stateSigner.verify.mockReturnValue({ remember: false, nonce: 'nonce-unverified' });
+      googleClient.getUserInfo.mockResolvedValue(verifiedGoogleUser);
+      accountRepo.findByProviderSubject.mockResolvedValue(null);
+
+      const unverifiedAccount = Account.registerWithPassword({
+        id: 'unverified-acc-id',
+        email: Email.create('teacher.cute@gmail.com'),
+        profileId: 'unverified-prof-id',
+      });
+      expect(unverifiedAccount.emailVerifiedAt).toBeNull();
+      accountRepo.findByEmail.mockResolvedValue(unverifiedAccount);
+
+      const result = await useCase.execute({
+        code: 'google-code-unverified',
+        state: 'valid-state-unverified',
+      });
+
+      expect(accountRepo.linkGoogleProvider).toHaveBeenCalledWith(
+        'unverified-acc-id',
+        'google-sub-100',
+        { verifyEmailAndClearPasswordAt: fixedNow },
+      );
+      expect(unverifiedAccount.emailVerifiedAt).toEqual(fixedNow);
+      expect(unverifiedAccount.loginProviders).toEqual(['google']);
       expect(result.redirectUrl).toBe(
         'http://localhost:3000/auth/callback?code=random-one-time-code-12345',
       );

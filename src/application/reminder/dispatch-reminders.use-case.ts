@@ -3,24 +3,35 @@ import { IdGenerator } from '../shared/ports/id-generator.port';
 import { TeacherSettingsReader } from '../settings/ports/teacher-settings.port';
 import { SentReminderRepository } from './ports/sent-reminder.repository.port';
 import { TaskReminderReader } from './ports/task-reminder.port';
+import { NoteReminderReader } from './ports/note-reminder.port';
+import { InAppNotificationRepository } from '../notification/ports/in-app-notification.repository.port';
 import { SendPushToTeacherUseCase } from '../push-subscription/send-push-to-teacher.use-case';
 import { PurgeSoftDeletedTagsUseCase } from '../tag/purge-soft-deleted-tags.use-case';
 import { PurgeSoftDeletedTasksUseCase } from '../task/purge-soft-deleted-tasks.use-case';
+import { PurgeExpiredAiImagesUseCase } from '../ai-assistant/purge-expired-ai-images.use-case';
 import { TimetableSlotRepository } from '../timetable/ports/timetable-slot.repository.port';
 import { ClassSessionRepository } from '../class-session/ports/class-session.repository.port';
 import { SentReminder } from '../../domain/reminder/sent-reminder.entity';
+import { InAppNotification } from '../../domain/notification/in-app-notification.entity';
 import { ReminderType } from '../../domain/reminder/reminder-type.vo';
 import {
   calculateClassSessionRemindAt,
+  calculateNoteRemindAt,
   calculateTaskRemindAt,
 } from '../../domain/reminder/reminder-time.calculator';
 import {
   formatClassSessionReminderNotification,
+  formatNoteReminderNotification,
   formatTaskReminderNotification,
 } from '../../domain/reminder/reminder-template';
-import { calculateTeacherToday } from '../../domain/settings/teacher-today.helper';
-import { generateClassSessions } from '../../domain/class-session/class-session-generator';
-import { ClassSession } from '../../domain/class-session/class-session.entity';
+import {
+  TeacherDateWindow,
+  calculateTeacherDateWindow,
+} from '../../domain/settings/teacher-today.helper';
+import {
+  generateClassSessions,
+  partitionClassSessions,
+} from '../../domain/class-session/class-session-generator';
 import { Settings } from '../../domain/settings/settings.entity';
 import { DispatchRemindersOutput } from './reminder.dto';
 
@@ -31,16 +42,19 @@ interface ProcessReminderParams {
   type: ReminderType;
   targetId: string;
   accountId: string;
+  pushEnabled: boolean;
   remindAt: Date;
   payload: {
     title: string;
     body: string;
     url: string;
+    tag?: string;
     data: {
       type: ReminderType;
       id: string;
       date: string;
       url: string;
+      remindAt?: string;
       [key: string]: unknown;
     };
   };
@@ -60,18 +74,29 @@ export class DispatchRemindersUseCase {
     private readonly sessionRepo: ClassSessionRepository,
     private readonly purgeSoftDeletedTagsUseCase?: PurgeSoftDeletedTagsUseCase,
     private readonly purgeSoftDeletedTasksUseCase?: PurgeSoftDeletedTasksUseCase,
+    private readonly noteReader?: NoteReminderReader,
+    private readonly inAppNotificationRepo?: InAppNotificationRepository,
+    private readonly purgeExpiredAiImagesUseCase?: PurgeExpiredAiImagesUseCase,
   ) {}
 
   async execute(): Promise<DispatchRemindersOutput> {
     const now = this.clock.now();
     const tenMinutesAgo = new Date(now.getTime() - TEN_MINUTES_MS);
+    const thirtyDaysAgo = new Date(now.getTime() - THIRTY_DAYS_MS);
 
-    // 1. Housekeeping: cleanup old sent reminders (> 30 days), soft-deleted tags and soft-deleted tasks
+    // 1. Housekeeping: cleanup old sent reminders (> 30 days), old in-app notifications (> 30 days), soft-deleted tags and soft-deleted tasks
     try {
-      const thirtyDaysAgo = new Date(now.getTime() - THIRTY_DAYS_MS);
       await this.sentReminderRepo.deletePermanentlyBefore(thirtyDaysAgo);
     } catch {
       // Non-blocking cleanup
+    }
+
+    if (this.inAppNotificationRepo) {
+      try {
+        await this.inAppNotificationRepo.deletePermanentlyBefore(thirtyDaysAgo);
+      } catch {
+        // Non-blocking cleanup
+      }
     }
 
     if (this.purgeSoftDeletedTagsUseCase) {
@@ -90,13 +115,23 @@ export class DispatchRemindersUseCase {
       }
     }
 
+    if (this.purgeExpiredAiImagesUseCase) {
+      try {
+        await this.purgeExpiredAiImagesUseCase.execute();
+      } catch {
+        // Non-blocking cleanup
+      }
+    }
+
     let sentCount = 0;
     let skippedCount = 0;
 
-    // 2. Fetch push-enabled teachers to optimize settings queries and prevent N+1
-    const pushTeachers = await this.settingsReader.findPushEnabledTeachers();
+    // 2. Fetch teacher settings to optimize queries and prevent N+1
+    const teacherSettingsList = this.settingsReader.findAllTeachers
+      ? await this.settingsReader.findAllTeachers()
+      : await this.settingsReader.findPushEnabledTeachers();
     const settingsCache = new Map<string, Settings | null>(
-      pushTeachers.map((s) => [s.accountId, s]),
+      teacherSettingsList.map((s) => [s.accountId, s]),
     );
 
     const getTeacherSettings = async (accountId: string): Promise<Settings | null> => {
@@ -108,19 +143,52 @@ export class DispatchRemindersUseCase {
       return fetched;
     };
 
-    // 3. Process candidate tasks
-    const tasks = await this.taskReader.findUpcomingTasks();
+    const windowCache = new Map<string, TeacherDateWindow>();
+    const getTeacherWindow = (timeZone: string): TeacherDateWindow => {
+      const cached = windowCache.get(timeZone);
+      if (cached) {
+        return cached;
+      }
+      const computed = calculateTeacherDateWindow(now, timeZone);
+      windowCache.set(timeZone, computed);
+      return computed;
+    };
+
+    let globalFromDate = new Date(now.getTime() - 36 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    let globalToDate = new Date(now.getTime() + 38 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    for (const s of teacherSettingsList) {
+      try {
+        const win = getTeacherWindow(s.timeZone);
+        if (win.yesterday < globalFromDate) globalFromDate = win.yesterday;
+        if (win.tomorrow > globalToDate) globalToDate = win.tomorrow;
+      } catch {
+        // Ignore invalid timezone here; handled per teacher below
+      }
+    }
+
+    const tasks = await this.taskReader.findUpcomingTasks(globalFromDate, globalToDate);
 
     for (const task of tasks) {
-      // Condition: task has time, not completed, not deleted
       if (!task.time || task.completed || task.deletedAt !== null) {
         skippedCount++;
         continue;
       }
 
-      // Teacher settings check
       const settings = await getTeacherSettings(task.accountId);
-      if (!settings || !settings.pushEnabled) {
+      if (!settings || (!settings.pushEnabled && !this.inAppNotificationRepo)) {
+        skippedCount++;
+        continue;
+      }
+
+      let teacherWindow: TeacherDateWindow;
+      try {
+        teacherWindow = getTeacherWindow(settings.timeZone);
+      } catch {
+        skippedCount++;
+        continue;
+      }
+
+      if (task.date < teacherWindow.yesterday || task.date > teacherWindow.tomorrow) {
         skippedCount++;
         continue;
       }
@@ -139,17 +207,23 @@ export class DispatchRemindersUseCase {
         continue;
       }
 
-      const payload = formatTaskReminderNotification(settings.locale, {
-        id: task.id,
-        title: task.title,
-        time: task.time,
-        date: task.date,
-      });
+      const payload = formatTaskReminderNotification(
+        settings.locale,
+        {
+          id: task.id,
+          title: task.title,
+          time: task.time,
+          date: task.date,
+          remindAt,
+        },
+        remindAt,
+      );
 
       const sent = await this.processReminderCandidate({
         type: 'task',
         targetId: task.id,
         accountId: task.accountId,
+        pushEnabled: settings.pushEnabled,
         remindAt,
         payload,
         now,
@@ -163,38 +237,107 @@ export class DispatchRemindersUseCase {
       }
     }
 
-    // 4. Candidate Class Sessions (SPEC-004 + SPEC-005)
-    for (const settings of pushTeachers) {
-      if (!settings.pushEnabled) {
+    // 3B. Process candidate notes across [yesterday, today, tomorrow] (SPEC-006)
+    if (this.noteReader) {
+      const notes = await this.noteReader.findUpcomingNotes(globalFromDate, globalToDate);
+
+      for (const note of notes) {
+        if (!note.dueDate || note.completed || note.deletedAt !== null) {
+          skippedCount++;
+          continue;
+        }
+
+        const settings = await getTeacherSettings(note.accountId);
+        if (!settings || (!settings.pushEnabled && !this.inAppNotificationRepo)) {
+          skippedCount++;
+          continue;
+        }
+
+        let teacherWindow: TeacherDateWindow;
+        try {
+          teacherWindow = getTeacherWindow(settings.timeZone);
+        } catch {
+          skippedCount++;
+          continue;
+        }
+
+        const noteDate = note.dueDate.slice(0, 10);
+        if (noteDate < teacherWindow.yesterday || noteDate > teacherWindow.tomorrow) {
+          skippedCount++;
+          continue;
+        }
+
+        let remindAt: Date;
+        try {
+          remindAt = calculateNoteRemindAt(
+            noteDate,
+            note.remindTime,
+            settings.timeZone,
+            settings.reminderLeadMinutes,
+          );
+        } catch {
+          skippedCount++;
+          continue;
+        }
+
+        const payload = formatNoteReminderNotification(
+          settings.locale,
+          {
+            id: note.id,
+            title: note.title,
+            dueDate: noteDate,
+            remindTime: note.remindTime,
+            remindAt,
+          },
+          remindAt,
+        );
+
+        const sent = await this.processReminderCandidate({
+          type: 'note',
+          targetId: note.id,
+          accountId: note.accountId,
+          pushEnabled: settings.pushEnabled,
+          remindAt,
+          payload,
+          now,
+          tenMinutesAgo,
+        });
+
+        if (sent) {
+          sentCount++;
+        } else {
+          skippedCount++;
+        }
+      }
+    }
+
+    // 4. Candidate Class Sessions across [yesterday, today, tomorrow] (SPEC-004 + SPEC-005 + SPEC-006)
+    for (const settings of teacherSettingsList) {
+      if (!settings.pushEnabled && !this.inAppNotificationRepo) {
         continue;
       }
 
-      let teacherToday: string;
+      let teacherWindow: TeacherDateWindow;
       try {
-        teacherToday = calculateTeacherToday(now, settings.timeZone).dateString;
+        teacherWindow = getTeacherWindow(settings.timeZone);
       } catch {
         continue;
       }
 
       const activeSlots = await this.slotRepo.findActiveByAccount(settings.accountId);
-      const generatedSessions = generateClassSessions(activeSlots, teacherToday, teacherToday);
+      const generatedSessions = generateClassSessions(
+        activeSlots,
+        teacherWindow.yesterday,
+        teacherWindow.tomorrow,
+      );
 
       const dbSessions = await this.sessionRepo.findByAccountAndDateRange(
         settings.accountId,
-        teacherToday,
-        teacherToday,
+        teacherWindow.yesterday,
+        teacherWindow.tomorrow,
       );
 
-      const overrides = new Map<string, ClassSession>();
-      const activeAdHocs: ClassSession[] = [];
-
-      for (const session of dbSessions) {
-        if (session.isOverride()) {
-          overrides.set(session.id, session);
-        } else if (session.isAdHoc() && !session.isDeleted()) {
-          activeAdHocs.push(session);
-        }
-      }
+      const { overrides, activeAdHocs } = partitionClassSessions(dbSessions);
 
       // 4A. Process generated sessions from timetable slots
       for (const genSession of generatedSessions) {
@@ -216,6 +359,10 @@ export class DispatchRemindersUseCase {
           override && override.room !== undefined && override.room !== null
             ? override.room
             : genSession.room;
+        const effectiveCategory =
+          override && override.category !== undefined && override.category !== null
+            ? override.category
+            : genSession.category;
 
         let remindAt: Date;
         try {
@@ -230,19 +377,26 @@ export class DispatchRemindersUseCase {
           continue;
         }
 
-        const payload = formatClassSessionReminderNotification(settings.locale, {
-          id: genSession.id,
-          date: genSession.date,
-          startTime: effectiveStartTime,
-          subject: effectiveSubject,
-          grade: effectiveGrade,
-          room: effectiveRoom,
-        });
+        const payload = formatClassSessionReminderNotification(
+          settings.locale,
+          {
+            id: genSession.id,
+            date: genSession.date,
+            startTime: effectiveStartTime,
+            subject: effectiveSubject,
+            grade: effectiveGrade,
+            room: effectiveRoom,
+            category: effectiveCategory,
+            remindAt,
+          },
+          remindAt,
+        );
 
         const sent = await this.processReminderCandidate({
           type: 'class_session',
           targetId: genSession.id,
           accountId: settings.accountId,
+          pushEnabled: settings.pushEnabled,
           remindAt,
           payload,
           now,
@@ -276,19 +430,26 @@ export class DispatchRemindersUseCase {
           continue;
         }
 
-        const payload = formatClassSessionReminderNotification(settings.locale, {
-          id: adHoc.id,
-          date: adHoc.date,
-          startTime: adHoc.startTime,
-          subject: adHoc.subject ?? '',
-          grade: adHoc.grade ?? undefined,
-          room: adHoc.room ?? undefined,
-        });
+        const payload = formatClassSessionReminderNotification(
+          settings.locale,
+          {
+            id: adHoc.id,
+            date: adHoc.date,
+            startTime: adHoc.startTime,
+            subject: adHoc.subject ?? '',
+            grade: adHoc.grade ?? undefined,
+            room: adHoc.room ?? undefined,
+            category: adHoc.category ?? 'school_teaching',
+            remindAt,
+          },
+          remindAt,
+        );
 
         const sent = await this.processReminderCandidate({
           type: 'class_session',
           targetId: adHoc.id,
           accountId: settings.accountId,
+          pushEnabled: settings.pushEnabled,
           remindAt,
           payload,
           now,
@@ -310,7 +471,8 @@ export class DispatchRemindersUseCase {
   }
 
   private async processReminderCandidate(params: ProcessReminderParams): Promise<boolean> {
-    const { type, targetId, accountId, remindAt, payload, now, tenMinutesAgo } = params;
+    const { type, targetId, accountId, pushEnabled, remindAt, payload, now, tenMinutesAgo } =
+      params;
 
     // Check window: remindAt ∈ (now - 10 minutes, now]
     if (remindAt.getTime() > now.getTime() || remindAt.getTime() < tenMinutesAgo.getTime()) {
@@ -323,13 +485,42 @@ export class DispatchRemindersUseCase {
       return false;
     }
 
-    // Send push notification to teacher's devices
-    const pushResult = await this.sendPushUseCase.execute({
-      accountId,
-      payload,
-    });
+    const enrichedPayload = {
+      ...payload,
+      tag: payload.tag ?? `${type}-${targetId}-${remindAt.getTime()}`,
+      data: {
+        ...payload.data,
+        remindAt: payload.data.remindAt ?? remindAt.toISOString(),
+      },
+    };
 
-    if (pushResult.sent > 0) {
+    let inAppCreated = false;
+    if (this.inAppNotificationRepo) {
+      const notification = InAppNotification.create({
+        id: this.idGenerator.next(),
+        accountId,
+        type,
+        targetId,
+        title: enrichedPayload.title,
+        body: enrichedPayload.body,
+        url: enrichedPayload.url,
+        data: enrichedPayload.data,
+        now,
+      });
+      await this.inAppNotificationRepo.save(notification);
+      inAppCreated = true;
+    }
+
+    let pushSent = 0;
+    if (pushEnabled) {
+      const pushResult = await this.sendPushUseCase.execute({
+        accountId,
+        payload: enrichedPayload,
+      });
+      pushSent = pushResult.sent;
+    }
+
+    if (inAppCreated || pushSent > 0) {
       const sentRecord = SentReminder.create({
         id: this.idGenerator.next(),
         type,

@@ -27,6 +27,7 @@ describe('TimetableController', () => {
     grade: '10A',
     room: '302',
     tone: 'blue',
+    category: 'school_teaching',
     effectiveFrom: '2026-10-01',
     effectiveTo: '2026-12-31',
     createdAt: '2026-10-27T08:00:00.000Z',
@@ -97,6 +98,7 @@ describe('TimetableController', () => {
           grade: '10A',
           room: '302',
           tone: 'blue',
+          category: 'extra_teaching',
           effectiveFrom: '2026-10-01',
           effectiveTo: '2026-12-31',
         },
@@ -105,6 +107,9 @@ describe('TimetableController', () => {
 
       expect(res.status).toHaveBeenCalledWith(HttpStatus.CREATED);
       expect(result).toEqual(mockSlotDto);
+      expect(createTimetableSlotUseCase.execute).toHaveBeenCalledWith(
+        expect.objectContaining({ category: 'extra_teaching' }),
+      );
     });
 
     it('returns 200 OK when slot already exists idempotently', async () => {

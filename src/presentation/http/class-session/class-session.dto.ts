@@ -15,6 +15,10 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { TONES, Tone } from '../../../domain/timetable/tone.vo';
+import {
+  SCHEDULE_CATEGORIES,
+  ScheduleCategory,
+} from '../../../domain/timetable/schedule-category.vo';
 
 export class PrepItemRequestDto {
   @IsString({ message: 'id must be a string' })
@@ -67,6 +71,12 @@ export class CreateAdHocClassSessionRequestDto {
     message: 'tone must be one of pink, blue, beige, lavender, rose, mint',
   })
   tone!: Tone;
+
+  @IsOptional()
+  @IsIn(SCHEDULE_CATEGORIES, {
+    message: 'category must be one of school_teaching, extra_teaching, self_study',
+  })
+  category?: ScheduleCategory;
 
   @IsOptional()
   @IsString()
@@ -123,6 +133,12 @@ export class UpdateClassSessionRequestDto {
     message: 'tone must be one of pink, blue, beige, lavender, rose, mint',
   })
   tone?: Tone;
+
+  @IsOptional()
+  @IsIn(SCHEDULE_CATEGORIES, {
+    message: 'category must be one of school_teaching, extra_teaching, self_study',
+  })
+  category?: ScheduleCategory;
 
   @IsOptional()
   @IsString()

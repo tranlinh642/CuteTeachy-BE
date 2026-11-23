@@ -13,6 +13,7 @@ import { Response } from 'express';
 import { GetVapidPublicKeyUseCase } from '../../../application/push-subscription/get-vapid-public-key.use-case';
 import { UpsertPushSubscriptionUseCase } from '../../../application/push-subscription/upsert-push-subscription.use-case';
 import { DeletePushSubscriptionUseCase } from '../../../application/push-subscription/delete-push-subscription.use-case';
+import { SendTestNotificationUseCase } from '../../../application/push-subscription/send-test-notification.use-case';
 import { PushSubscriptionDto } from '../../../application/push-subscription/push-subscription.dto';
 import { AccessTokenPayload } from '../../../application/account/ports/token.service.port';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -21,6 +22,7 @@ import {
   CreatePushSubscriptionRequestDto,
   DeletePushSubscriptionQueryDto,
   DeletePushSubscriptionRequestDto,
+  TestPushNotificationResponseDto,
   VapidPublicKeyResponseDto,
 } from './push-subscription.dto';
 
@@ -30,6 +32,7 @@ export class PushSubscriptionController {
     private readonly getVapidPublicKeyUseCase: GetVapidPublicKeyUseCase,
     private readonly upsertPushSubscriptionUseCase: UpsertPushSubscriptionUseCase,
     private readonly deletePushSubscriptionUseCase: DeletePushSubscriptionUseCase,
+    private readonly sendTestNotificationUseCase: SendTestNotificationUseCase,
   ) {}
 
   @Public()
@@ -77,6 +80,16 @@ export class PushSubscriptionController {
     await this.deletePushSubscriptionUseCase.execute({
       accountId: user.sub,
       endpoint,
+    });
+  }
+
+  @Post('subscriptions/test')
+  @HttpCode(HttpStatus.OK)
+  async sendTestNotification(
+    @CurrentUser() user: AccessTokenPayload,
+  ): Promise<TestPushNotificationResponseDto> {
+    return this.sendTestNotificationUseCase.execute({
+      accountId: user.sub,
     });
   }
 }

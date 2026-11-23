@@ -14,6 +14,7 @@ export interface CreateNoteInput {
   checklist?: { id: string; text: string; done: boolean }[];
   tagIds?: string[];
   dueDate?: string | null;
+  remindTime?: string | null;
   completed?: boolean;
   imageUrl?: string | null;
 }
@@ -62,6 +63,7 @@ export class CreateNoteUseCase {
       imageUrl: input.imageUrl,
       tagIds: input.tagIds,
       dueDate: input.dueDate,
+      remindTime: input.remindTime,
       completed: input.completed,
       now: this.clock.now(),
     });

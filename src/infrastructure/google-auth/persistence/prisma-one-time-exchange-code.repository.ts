@@ -36,10 +36,18 @@ export class PrismaOneTimeExchangeCodeRepository implements OneTimeExchangeCodeR
         return null;
       }
 
-      await tx.oneTimeExchangeCode.update({
-        where: { id: record.id },
+      const updated = await tx.oneTimeExchangeCode.updateMany({
+        where: {
+          id: record.id,
+          usedAt: null,
+          expiresAt: { gt: now },
+        },
         data: { usedAt: now },
       });
+
+      if (updated.count !== 1) {
+        return null;
+      }
 
       return {
         id: record.id,

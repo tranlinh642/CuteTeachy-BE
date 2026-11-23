@@ -42,6 +42,12 @@ enum TaskPriority {
   high
 }
 
+enum ScheduleCategory {
+  school_teaching
+  extra_teaching
+  self_study
+}
+
 model Account {
   id              String    @id @default(uuid())
   email           String    @unique
@@ -62,6 +68,8 @@ model Account {
   classSessions     ClassSession[]
   pushSubscriptions PushSubscription[]
   sentReminders     SentReminder[]
+  inAppNotifications InAppNotification[]
+  aiChatMessages    AiChatMessage[]
 
   @@map("accounts")
 }
@@ -242,6 +250,7 @@ model Note {
   checklist     Json      @default("[]")
   imageUrl      String?
   dueDate       String?
+  remindTime    String?
   completed     Boolean   @default(false)
   searchContent String    @default("")
   createdAt     DateTime  @default(now())
@@ -282,7 +291,7 @@ model Inspiration {
 }
 
 model TimetableSlot {
-  id            String    @id
+  id            String           @id
   accountId     String
   weekday       Int
   startTime     String
@@ -291,10 +300,11 @@ model TimetableSlot {
   grade         String?
   room          String?
   tone          Tone
+  category      ScheduleCategory @default(school_teaching)
   effectiveFrom String
   effectiveTo   String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
   deletedAt     DateTime?
 
   account       Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
@@ -308,7 +318,7 @@ model TimetableSlot {
 }
 
 model ClassSession {
-  id              String    @id
+  id              String            @id
   accountId       String
   timetableSlotId String?
   date            String
@@ -318,11 +328,12 @@ model ClassSession {
   grade           String?
   room            String?
   tone            Tone?
+  category        ScheduleCategory?
   topic           String?
-  prepItems       Json      @default("[]")
-  cancelled       Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  prepItems       Json              @default("[]")
+  cancelled       Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
   deletedAt       DateTime?
 
   account         Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
@@ -354,7 +365,7 @@ model PushSubscription {
 
 model SentReminder {
   id        String   @id @default(uuid())
-  type      String   // 'task' | 'class_session'
+  type      String   // 'task' | 'class_session' | 'note'
   targetId  String
   remindAt  DateTime
   sentAt    DateTime @default(now())
@@ -368,3 +379,42 @@ model SentReminder {
   @@index([remindAt])
   @@map("sent_reminders")
 }
+
+model InAppNotification {
+  id        String    @id @default(uuid())
+  accountId String
+  type      String    // 'task' | 'class_session' | 'note' | 'system'
+  targetId  String?
+  title     String
+  body      String
+  url       String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
+  @@index([accountId, readAt])
+  @@map("in_app_notifications")
+}
+
+model AiChatMessage {
+  id             String    @id @default(uuid())
+  accountId      String
+  role           String    // 'user' | 'assistant'
+  content        String
+  imageUrl       String?
+  imageKey       String?
+  imageExpiresAt DateTime?
+  draft          Json?
+  createdAt      DateTime  @default(now())
+
+  account        Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
+  @@index([imageExpiresAt])
+  @@map("ai_chat_messages")
+}
+
+

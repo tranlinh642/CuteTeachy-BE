@@ -214,10 +214,29 @@ describe('UpdateClassSessionUseCase', () => {
       expect(res.startTime).toBe('08:30');
       expect(res.endTime).toBe('10:00');
       expect(res.tone).toBe('mint');
+      expect(res.category).toBe('school_teaching');
       expect(res.topic).toBe('Ôn tập chương 1');
       expect(res.prepItems).toHaveLength(1);
       expect(res.cancelled).toBe(true);
       expect(res.updatedAt).toBe(later.toISOString());
+    });
+
+    it('allows updating category on ad-hoc session and override session', async () => {
+      const updatedAdHoc = await useCase.execute({
+        id: adHocId,
+        accountId,
+        category: 'extra_teaching',
+      });
+      expect(updatedAdHoc.category).toBe('extra_teaching');
+
+      const generatedSessionId = `${slotId}:${mondayDate}`;
+      const updatedOverride = await useCase.execute({
+        id: generatedSessionId,
+        accountId,
+        category: 'self_study',
+        topic: 'Tự nghiên cứu',
+      });
+      expect(updatedOverride.category).toBe('self_study');
     });
 
     it('throws EntityNotFoundError when ad-hoc session not found or belongs to another account', async () => {

@@ -81,6 +81,10 @@ export class ResetPasswordUseCase {
     const newHash = await this.passwordHasher.hash(passwordVo.value);
     await this.accountRepository.updatePassword(account.id, newHash);
 
+    if (account.emailVerifiedAt === null) {
+      await this.accountRepository.markEmailVerified(account.id, now);
+    }
+
     // Revoke all refresh tokens for account
     await this.refreshTokenRepository.revokeAllForAccount(account.id, now);
   }

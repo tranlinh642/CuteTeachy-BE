@@ -1,6 +1,11 @@
 import { SyncableEntity } from '../shared/sync-idempotency';
 import { Tone, isTone } from '../timetable/tone.vo';
 import {
+  DEFAULT_SCHEDULE_CATEGORY,
+  ScheduleCategory,
+  isScheduleCategory,
+} from '../timetable/schedule-category.vo';
+import {
   CannotDeleteGeneratedSessionError,
   ClassSessionValidationError,
 } from './class-session.errors';
@@ -20,6 +25,7 @@ export interface CreateAdHocClassSessionProps {
   grade?: string | null;
   room?: string | null;
   tone: Tone;
+  category?: ScheduleCategory;
   topic?: string | null;
   prepItems?: PrepItem[];
   cancelled?: boolean;
@@ -31,6 +37,7 @@ export interface CreateOverrideClassSessionProps {
   accountId: string;
   timetableSlotId: string;
   date: string;
+  category?: ScheduleCategory | null;
   topic?: string | null;
   prepItems?: PrepItem[];
   cancelled?: boolean;
@@ -48,6 +55,7 @@ export interface RehydrateClassSessionProps {
   grade: string | null;
   room: string | null;
   tone: Tone | null;
+  category?: ScheduleCategory | null;
   topic: string | null;
   prepItems: PrepItem[];
   cancelled: boolean;
@@ -64,6 +72,7 @@ export interface UpdateAdHocClassSessionProps {
   grade?: string | null;
   room?: string | null;
   tone?: Tone;
+  category?: ScheduleCategory;
   topic?: string | null;
   prepItems?: PrepItem[];
   cancelled?: boolean;
@@ -71,6 +80,7 @@ export interface UpdateAdHocClassSessionProps {
 }
 
 export interface UpdateOverrideClassSessionProps {
+  category?: ScheduleCategory | null;
   topic?: string | null;
   prepItems?: PrepItem[];
   cancelled?: boolean;
@@ -89,6 +99,7 @@ export class ClassSession implements SyncableEntity {
     private _grade: string | null,
     private _room: string | null,
     private _tone: Tone | null,
+    private _category: ScheduleCategory | null,
     private _topic: string | null,
     private _prepItems: PrepItem[],
     private _cancelled: boolean,
@@ -106,6 +117,8 @@ export class ClassSession implements SyncableEntity {
     const validGrade = ClassSession.normalizeOptionalString(props.grade);
     const validRoom = ClassSession.normalizeOptionalString(props.room);
     ClassSession.validateTone(props.tone);
+    const validCategory = props.category ?? DEFAULT_SCHEDULE_CATEGORY;
+    ClassSession.validateCategory(validCategory);
     const validTopic = ClassSession.normalizeTopic(props.topic);
     const validPrepItems = props.prepItems ? validatePrepItems(props.prepItems) : [];
 
@@ -120,6 +133,7 @@ export class ClassSession implements SyncableEntity {
       validGrade,
       validRoom,
       props.tone,
+      validCategory,
       validTopic,
       validPrepItems,
       props.cancelled ?? false,
@@ -134,6 +148,9 @@ export class ClassSession implements SyncableEntity {
     ClassSession.validateDate(props.date);
     if (!props.timetableSlotId || !UUID_REGEX.test(props.timetableSlotId)) {
       throw new ClassSessionValidationError('timetableSlotId must be a valid UUID');
+    }
+    if (props.category !== undefined && props.category !== null) {
+      ClassSession.validateCategory(props.category);
     }
     const id = props.id ?? `${props.timetableSlotId}:${props.date}`;
     const validTopic = ClassSession.normalizeTopic(props.topic);
@@ -150,6 +167,7 @@ export class ClassSession implements SyncableEntity {
       null,
       null,
       null,
+      props.category ?? null,
       validTopic,
       validPrepItems,
       props.cancelled ?? false,
@@ -171,6 +189,7 @@ export class ClassSession implements SyncableEntity {
       props.grade,
       props.room,
       props.tone,
+      props.category ?? (props.timetableSlotId === null ? DEFAULT_SCHEDULE_CATEGORY : null),
       props.topic,
       props.prepItems,
       props.cancelled,
@@ -218,6 +237,10 @@ export class ClassSession implements SyncableEntity {
 
   get tone(): Tone | null {
     return this._tone;
+  }
+
+  get category(): ScheduleCategory | null {
+    return this._category;
   }
 
   get topic(): string | null {
@@ -291,6 +314,11 @@ export class ClassSession implements SyncableEntity {
       this._tone = props.tone;
     }
 
+    if (props.category !== undefined) {
+      ClassSession.validateCategory(props.category);
+      this._category = props.category;
+    }
+
     if (props.topic !== undefined) {
       this._topic = ClassSession.normalizeTopic(props.topic);
     }
@@ -309,6 +337,13 @@ export class ClassSession implements SyncableEntity {
   updateOverride(props: UpdateOverrideClassSessionProps): void {
     if (this._timetableSlotId === null) {
       throw new ClassSessionValidationError('Cannot update ad-hoc session as override');
+    }
+
+    if (props.category !== undefined) {
+      if (props.category !== null) {
+        ClassSession.validateCategory(props.category);
+      }
+      this._category = props.category;
     }
 
     if (props.topic !== undefined) {
@@ -334,6 +369,7 @@ export class ClassSession implements SyncableEntity {
     grade?: string | null;
     room?: string | null;
     tone: Tone;
+    category?: ScheduleCategory;
     topic?: string | null;
     prepItems?: PrepItem[];
     cancelled?: boolean;
@@ -345,6 +381,7 @@ export class ClassSession implements SyncableEntity {
     const normGrade = payload.grade ? payload.grade.trim() : null;
     const normRoom = payload.room ? payload.room.trim() : null;
     const normSubject = payload.subject?.trim() ?? '';
+    const normCategory = payload.category ?? DEFAULT_SCHEDULE_CATEGORY;
     const normTopic = payload.topic ? payload.topic.trim() : null;
     const normCancelled = payload.cancelled ?? false;
     const payloadItems = payload.prepItems ?? [];
@@ -366,6 +403,7 @@ export class ClassSession implements SyncableEntity {
       this._grade === normGrade &&
       this._room === normRoom &&
       this._tone === payload.tone &&
+      (this._category ?? DEFAULT_SCHEDULE_CATEGORY) === normCategory &&
       this._topic === normTopic &&
       this._cancelled === normCancelled &&
       itemsMatch
@@ -447,6 +485,14 @@ export class ClassSession implements SyncableEntity {
     if (!isTone(tone)) {
       throw new ClassSessionValidationError(
         'tone must be one of pink, blue, beige, lavender, rose, mint',
+      );
+    }
+  }
+
+  private static validateCategory(category: unknown): asserts category is ScheduleCategory {
+    if (!isScheduleCategory(category)) {
+      throw new ClassSessionValidationError(
+        'category must be one of school_teaching, extra_teaching, self_study',
       );
     }
   }

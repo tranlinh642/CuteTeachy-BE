@@ -64,7 +64,6 @@ export class LoginUseCase {
     if (
       this.emailVerificationRequired &&
       account.emailVerifiedAt === null &&
-      account.loginProviders.length === 1 &&
       account.hasLoginProvider('password')
     ) {
       throw new EmailNotVerifiedError();

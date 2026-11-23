@@ -1,5 +1,6 @@
 import { TimetableSlot } from '../../domain/timetable/timetable-slot.entity';
 import { Tone } from '../../domain/timetable/tone.vo';
+import { ScheduleCategory } from '../../domain/timetable/schedule-category.vo';
 import {
   PayloadConflictError,
   TimetableConflictError,
@@ -20,6 +21,7 @@ export interface CreateTimetableSlotInput {
   grade?: string | null;
   room?: string | null;
   tone: Tone;
+  category?: ScheduleCategory;
   effectiveFrom: string;
   effectiveTo?: string | null;
 }
@@ -74,6 +76,7 @@ export class CreateTimetableSlotUseCase {
       grade: input.grade,
       room: input.room,
       tone: input.tone,
+      category: input.category,
       effectiveFrom: input.effectiveFrom,
       effectiveTo: input.effectiveTo,
       now: this.clock.now(),

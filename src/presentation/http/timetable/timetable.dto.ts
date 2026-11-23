@@ -13,6 +13,10 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { TONES, Tone } from '../../../domain/timetable/tone.vo';
+import {
+  SCHEDULE_CATEGORIES,
+  ScheduleCategory,
+} from '../../../domain/timetable/schedule-category.vo';
 
 export class CreateTimetableSlotRequestDto {
   @IsUUID('all', { message: 'id must be a valid UUID' })
@@ -51,6 +55,12 @@ export class CreateTimetableSlotRequestDto {
     message: 'tone must be one of pink, blue, beige, lavender, rose, mint',
   })
   tone!: Tone;
+
+  @IsOptional()
+  @IsIn(SCHEDULE_CATEGORIES, {
+    message: 'category must be one of school_teaching, extra_teaching, self_study',
+  })
+  category?: ScheduleCategory;
 
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'effectiveFrom must be in YYYY-MM-DD format' })
@@ -107,6 +117,12 @@ export class UpdateTimetableSlotRequestDto {
     message: 'tone must be one of pink, blue, beige, lavender, rose, mint',
   })
   tone?: Tone;
+
+  @IsOptional()
+  @IsIn(SCHEDULE_CATEGORIES, {
+    message: 'category must be one of school_teaching, extra_teaching, self_study',
+  })
+  category?: ScheduleCategory;
 
   @IsOptional()
   @IsString()

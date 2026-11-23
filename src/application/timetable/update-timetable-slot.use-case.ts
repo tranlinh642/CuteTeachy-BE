@@ -1,4 +1,5 @@
 import { Tone } from '../../domain/timetable/tone.vo';
+import { ScheduleCategory } from '../../domain/timetable/schedule-category.vo';
 import { EntityNotFoundError } from '../../domain/shared/sync.errors';
 import { TimetableConflictError } from '../../domain/timetable/timetable.errors';
 import { calculateTeacherToday } from '../../domain/settings/teacher-today.helper';
@@ -26,6 +27,7 @@ export interface UpdateTimetableSlotInput {
   grade?: string | null;
   room?: string | null;
   tone?: Tone;
+  category?: ScheduleCategory;
   effectiveFrom?: string;
   effectiveTo?: string | null;
 }
@@ -66,6 +68,7 @@ export class UpdateTimetableSlotUseCase {
           grade: input.grade,
           room: input.room,
           tone: input.tone,
+          category: input.category,
           effectiveFrom: input.effectiveFrom,
           effectiveTo: input.effectiveTo,
         },

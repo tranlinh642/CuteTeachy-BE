@@ -40,6 +40,7 @@ export class JwtTokenService implements TokenService {
     const expiresAt = new Date(Date.now() + ttlMs);
 
     const token = jwt.sign(payload, this.config.JWT_SECRET, {
+      algorithm: 'HS256',
       expiresIn: Math.floor(ttlMs / 1000),
     });
 
@@ -48,8 +49,18 @@ export class JwtTokenService implements TokenService {
 
   async verifyAccessToken(token: string): Promise<AccessTokenPayload> {
     try {
-      const decoded = jwt.verify(token, this.config.JWT_SECRET) as AccessTokenPayload;
-      if (!decoded || !decoded.sub) {
+      const decoded = jwt.verify(token, this.config.JWT_SECRET, {
+        algorithms: ['HS256'],
+      }) as Record<string, unknown>;
+      if (
+        !decoded ||
+        typeof decoded !== 'object' ||
+        typeof decoded.sub !== 'string' ||
+        !decoded.sub ||
+        'codeVerifier' in decoded ||
+        'redirectUri' in decoded ||
+        'nonce' in decoded
+      ) {
         throw new UnauthorizedError('Invalid access token payload');
       }
       return { sub: decoded.sub };

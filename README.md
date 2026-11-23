@@ -1,39 +1,32 @@
 # CuteTeachy - Backend Service (CuteTeachy-BE)
 
-Backend API và dịch vụ lưu trữ dữ liệu cho ứng dụng **CuteTeachy** (Serene Educator) - Ứng dụng quản lý thời gian, lịch giảng dạy và ghi chú dành cho nữ giáo viên.
+Backend API và dịch vụ lưu trữ dữ liệu cho ứng dụng **CuteTeachy** (Serene Educator) - Ứng dụng PWA quản lý thời gian, thời khóa biểu, công việc, ghi chú và trợ lý AI dành cho giáo viên.
 
 ---
 
-## 📁 Cấu trúc Thư mục Tài liệu Docs
+## 📁 Tài liệu Nghiệp vụ & Kiến trúc (NotebookLM)
 
-Tài liệu nghiệp vụ (BA) và đặc tả kỹ thuật được lưu trữ trong thư mục [`docs/`](./docs):
+Toàn bộ tài liệu nghiệp vụ, từ điển thuật ngữ (Glossary), quyết định kiến trúc (ADR), thiết kế schema/API và hướng dẫn cấu hình dịch vụ ngoài đã được chuẩn hóa và lưu tập trung trên Google NotebookLM:
 
-- [`docs/ba/prd-cuteteachy.md`](./docs/ba/prd-cuteteachy.md): Bản đặc tả yêu cầu sản phẩm (PRD), tầm nhìn và các tính năng cốt lõi.
-- [`docs/ba/deploy-ket-noi-database.md`](./docs/ba/deploy-ket-noi-database.md): Hướng dẫn thiết lập database (MySQL / MongoDB) và cấu hình kết nối.
-- [`docs/ba/bao-cao-fe-2026-07-20.md`](./docs/ba/bao-cao-fe-2026-07-20.md): Báo cáo tiến độ và cấu trúc màn hình phía Frontend.
+- **Notebook**: `CuteTeachy` (`ID: e2d64277-b89c-41ad-b2d9-4bb5e4ee2570`)
+- **Danh mục nguồn (`[01]`–`[07]`)**:
+  - `[01]` Tổng quan Dự án, Glossary & Quyết định Kiến trúc (ADR 0001-0007)
+  - `[02]` Nghiệp vụ Auth, Onboarding, Hồ sơ, Avatar & Theme Giới tính (SPEC-001 & SPEC-002)
+  - `[03]` Nghiệp vụ Tasks, Notes, Tags, Inspiration, Settings & Lưu trữ Offline PWA (SPEC-003)
+  - `[04]` Nghiệp vụ Thời khóa biểu, Buổi lịch & 3 Phân loại Lịch (SPEC-004 & SPEC-007)
+  - `[05]` Nghiệp vụ Thông báo 2 tầng, Web Push & Trợ lý AI Gemini (SPEC-005, SPEC-006 & SPEC-007)
+  - `[06]` Kiến trúc Mã nguồn Chi tiết, Database Schema (Prisma) & Danh mục REST API
+  - `[07]` Cấu hình Dịch vụ Ngoài, Quy chuẩn DI/Patterns & Hướng dẫn Kiểm thử
 
 ---
 
-## 🎯 Tổng quan Yêu cầu Nghiệp vụ (Core BA Requirements)
+## 🎯 Tổng quan Yêu cầu Nghiệp vụ (Core Features)
 
-Dựa trên PRD CuteTeachy, Backend cần phục vụ các domain dữ liệu chính:
-
-### 1. Quản lý Nhiệm vụ & Lịch giảng dạy (Tasks & Schedule)
-- **Daily Focus / Tasks**: Danh sách công việc theo ngày, trạng thái hoàn thành, mức độ ưu tiên, đếm số tiết học.
-- **Weekly Schedule**: Phân bổ khối lượng giảng dạy theo tuần, sự kiện cá nhân.
-- **Monthly Calendar**: Xem và lên kế hoạch dài hạn, chi tiết theo từng ngày.
-- **Quick Task Entry**: API tạo nhanh nhiệm vụ từ Floating Action Button (FAB).
-
-### 2. Ghi chú & Sổ tay lớp học (Notes & Classroom Observations)
-- **Notes**: Tạo và quản lý ghi chú theo chủ đề/lớp học.
-- **To-Dos**: Danh sách checklist công việc đính kèm hoặc độc lập.
-
-### 3. Hệ thống Nhãn & Phân loại (Tagging System)
-- Tạo nhãn tuỳ biến theo lớp (Class), môn học (Subject), hoặc độ ưu tiên (Priority).
-- Gắn nhãn cho Tasks và Notes.
-
-### 4. Người dùng & Cài đặt (User & Settings)
-- Hồ sơ giáo viên (Profile), cấu hình ca dạy và nhắc nhở.
+1. **Auth, Onboarding, Hồ sơ & Avatar**: Đăng ký/đăng nhập mật khẩu (`argon2id`), Google OAuth + Account Linking, JWT Access Token (15m) + Refresh Token rotation, xác minh email / đặt lại mật khẩu OTP, Onboarding bắt buộc, upload Avatar lên S3/MinIO/R2.
+2. **Thời khóa biểu & Buổi lịch (`TimetableSlot` & `ClassSession`)**: 3 phân loại lịch (`school_teaching`, `extra_teaching`, `self_study`), kiểm tra trùng giờ, tách slot giữ lịch sử quá khứ, sinh buổi động, ghi đè chủ đề/chuẩn bị/hủy tiết và buổi lẻ dạy bù.
+3. **Tasks, Notes, Tags, Inspiration & Delta Sync**: Quản lý công việc, ghi chú + checklist tự tính `completed`, tìm kiếm tiếng Việt không dấu, nhãn màu pastel, câu trích dẫn song ngữ theo múi giờ và đồng bộ chênh lệch (`?updatedSince`).
+4. **Thông báo 2 tầng & Nhắc việc Đa thiết bị**: In-App Notification Center + Web Push chuẩn VAPID (hỗ trợ nhắc Task, Class Session, Note và quét bù qua nửa đêm).
+5. **Trợ lý AI Đa phương thức (Google Gemini)**: Bóc tách thời khóa biểu từ ảnh chụp/văn bản thành bản nháp (`AI Schedule Draft`) kèm xử lý trùng lịch (`replace_conflicts` / `skip_conflicts`), hỏi đáp lịch trình và tự động xóa ảnh chat sau 45 ngày.
 
 ---
 

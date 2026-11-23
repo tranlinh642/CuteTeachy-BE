@@ -1,6 +1,16 @@
 import { Module } from '@nestjs/common';
+import { NotificationModule } from './notification.module';
+import { SettingsModule } from './settings.module';
 import { CLOCK, Clock } from '../application/shared/ports/clock.port';
 import { ID_GENERATOR, IdGenerator } from '../application/shared/ports/id-generator.port';
+import {
+  IN_APP_NOTIFICATION_REPOSITORY,
+  InAppNotificationRepository,
+} from '../application/notification/ports/in-app-notification.repository.port';
+import {
+  TEACHER_SETTINGS_READER,
+  TeacherSettingsReader,
+} from '../application/settings/ports/teacher-settings.port';
 import {
   PUSH_SUBSCRIPTION_REPOSITORY,
   PushSubscriptionRepository,
@@ -10,11 +20,13 @@ import { GetVapidPublicKeyUseCase } from '../application/push-subscription/get-v
 import { UpsertPushSubscriptionUseCase } from '../application/push-subscription/upsert-push-subscription.use-case';
 import { DeletePushSubscriptionUseCase } from '../application/push-subscription/delete-push-subscription.use-case';
 import { SendPushToTeacherUseCase } from '../application/push-subscription/send-push-to-teacher.use-case';
+import { SendTestNotificationUseCase } from '../application/push-subscription/send-test-notification.use-case';
 import { PrismaPushSubscriptionRepository } from '../infrastructure/persistence/prisma/repositories/prisma-push-subscription.repository';
 import { WebPushSender } from '../infrastructure/notification/web-push-sender';
 import { PushSubscriptionController } from '../presentation/http/push-subscription/push-subscription.controller';
 
 @Module({
+  imports: [NotificationModule, SettingsModule],
   controllers: [PushSubscriptionController],
   providers: [
     {
@@ -47,6 +59,30 @@ import { PushSubscriptionController } from '../presentation/http/push-subscripti
         new SendPushToTeacherUseCase(repo, sender),
       inject: [PUSH_SUBSCRIPTION_REPOSITORY, PUSH_SENDER],
     },
+    {
+      provide: SendTestNotificationUseCase,
+      useFactory: (
+        inAppRepo: InAppNotificationRepository,
+        sendPushUseCase: SendPushToTeacherUseCase,
+        settingsReader: TeacherSettingsReader,
+        clock: Clock,
+        idGen: IdGenerator,
+      ) =>
+        new SendTestNotificationUseCase(
+          inAppRepo,
+          sendPushUseCase,
+          settingsReader,
+          clock,
+          idGen,
+        ),
+      inject: [
+        IN_APP_NOTIFICATION_REPOSITORY,
+        SendPushToTeacherUseCase,
+        TEACHER_SETTINGS_READER,
+        CLOCK,
+        ID_GENERATOR,
+      ],
+    },
   ],
   exports: [
     PUSH_SUBSCRIPTION_REPOSITORY,
@@ -55,6 +91,7 @@ import { PushSubscriptionController } from '../presentation/http/push-subscripti
     UpsertPushSubscriptionUseCase,
     DeletePushSubscriptionUseCase,
     SendPushToTeacherUseCase,
+    SendTestNotificationUseCase,
   ],
 })
 export class PushSubscriptionModule {}

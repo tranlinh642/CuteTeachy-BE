@@ -200,6 +200,7 @@ describe('Class Sessions E2E (HTTP API with real Postgres)', () => {
       expect(session.grade).toBe('10A');
       expect(session.room).toBe('302');
       expect(session.tone).toBe('blue');
+      expect(session.category).toBe('school_teaching');
       expect(session.prepItems).toEqual([]);
       expect(session.cancelled).toBe(false);
       expect(session.updatedAt).toBeDefined();
@@ -586,9 +587,65 @@ describe('Class Sessions E2E (HTTP API with real Postgres)', () => {
       expect(updateRes.body.grade).toBe('11A');
       expect(updateRes.body.room).toBe('P.201');
       expect(updateRes.body.tone).toBe('mint');
+      expect(updateRes.body.category).toBe('school_teaching');
       expect(updateRes.body.topic).toBe('Hàm số lượng giác');
       expect(updateRes.body.prepItems).toHaveLength(1);
       expect(updateRes.body.cancelled).toBe(true);
+    });
+
+    it('supports all 3 ScheduleCategory values on slot-generated sessions, overrides, and ad-hoc sessions', async () => {
+      const { token } = await createTeacher('category.sessions@example.com');
+
+      const extraSlotId = '12121212-1212-4111-8111-121212121212';
+      await request(app.getHttpServer())
+        .post('/timetable-slots')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: extraSlotId,
+          weekday: 1,
+          startTime: '18:00',
+          endTime: '19:30',
+          subject: 'Toán bồi dưỡng',
+          tone: 'lavender',
+          category: 'extra_teaching',
+          effectiveFrom: '2026-10-01',
+        })
+        .expect(201);
+
+      const adHocStudyId = '34343434-3434-4111-8111-343434343434';
+      const adHocRes = await request(app.getHttpServer())
+        .post('/class-sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          id: adHocStudyId,
+          date: '2026-10-27',
+          startTime: '19:00',
+          endTime: '21:00',
+          subject: 'Luyện thi IELTS',
+          tone: 'mint',
+          category: 'self_study',
+        })
+        .expect(201);
+      expect(adHocRes.body.category).toBe('self_study');
+
+      const listRes = await request(app.getHttpServer())
+        .get('/class-sessions?from=2026-10-26&to=2026-10-30')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(listRes.body.items).toHaveLength(2);
+      expect(listRes.body.items[0].id).toBe(`${extraSlotId}:2026-10-26`);
+      expect(listRes.body.items[0].category).toBe('extra_teaching');
+      expect(listRes.body.items[1].id).toBe(adHocStudyId);
+      expect(listRes.body.items[1].category).toBe('self_study');
+
+      // Update ad-hoc category
+      const patchAdHoc = await request(app.getHttpServer())
+        .patch(`/class-sessions/${adHocStudyId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ category: 'extra_teaching' })
+        .expect(200);
+      expect(patchAdHoc.body.category).toBe('extra_teaching');
     });
   });
 

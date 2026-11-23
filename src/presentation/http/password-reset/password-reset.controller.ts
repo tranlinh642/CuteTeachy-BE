@@ -3,21 +3,11 @@ import { Request } from 'express';
 import { ForgotPasswordUseCase } from '../../../application/password-reset/forgot-password.use-case';
 import { ResetPasswordUseCase } from '../../../application/password-reset/reset-password.use-case';
 import { Public } from '../auth/public.decorator';
+import { getClientIp } from '../shared/client-ip.helper';
 import {
   ForgotPasswordRequestDto,
   ResetPasswordRequestDto,
 } from './password-reset.dto';
-
-function getClientIp(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') {
-    return forwarded.split(',')[0].trim();
-  }
-  if (Array.isArray(forwarded) && forwarded.length > 0) {
-    return forwarded[0].trim();
-  }
-  return req.ip || req.socket?.remoteAddress || '127.0.0.1';
-}
 
 @Controller('auth/password')
 export class PasswordResetController {

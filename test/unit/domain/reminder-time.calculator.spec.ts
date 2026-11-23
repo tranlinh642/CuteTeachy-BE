@@ -1,5 +1,6 @@
 import {
   calculateClassSessionRemindAt,
+  calculateNoteRemindAt,
   calculateTaskRemindAt,
   parseZonedTimeToUtc,
 } from '../../../src/domain/reminder/reminder-time.calculator';
@@ -77,6 +78,34 @@ describe('Reminder Time Calculator', () => {
       // Lead 15 min -> remindAt is 00:15:00.000Z
       const remindAt = calculateClassSessionRemindAt('2026-10-27', '07:30', 'Asia/Ho_Chi_Minh', 15);
       expect(remindAt.toISOString()).toBe('2026-10-27T00:15:00.000Z');
+    });
+  });
+
+  describe('calculateNoteRemindAt (S6-BE-01)', () => {
+    it('when remindTime is provided, subtracts leadMinutes from dueDate + remindTime in teacher timezone', () => {
+      // 2026-10-27 10:00 Asia/Ho_Chi_Minh -> 03:00 UTC
+      // Lead 15 min -> 02:45 UTC
+      const remindAt = calculateNoteRemindAt('2026-10-27', '10:00', 'Asia/Ho_Chi_Minh', 15);
+      expect(remindAt.toISOString()).toBe('2026-10-27T02:45:00.000Z');
+    });
+
+    it('when remindTime is null or empty, sets remindAt to 07:00 morning in teacher timezone without subtracting leadMinutes', () => {
+      // 2026-10-27 07:00 Asia/Ho_Chi_Minh (UTC+7) -> 00:00 UTC (even with leadMinutes = 30)
+      const remindAtNull = calculateNoteRemindAt('2026-10-27', null, 'Asia/Ho_Chi_Minh', 30);
+      expect(remindAtNull.toISOString()).toBe('2026-10-27T00:00:00.000Z');
+
+      const remindAtEmpty = calculateNoteRemindAt('2026-10-27', '', 'Asia/Ho_Chi_Minh', 15);
+      expect(remindAtEmpty.toISOString()).toBe('2026-10-27T00:00:00.000Z');
+    });
+
+    it('supports ISO dueDate strings by extracting YYYY-MM-DD', () => {
+      const remindAt = calculateNoteRemindAt(
+        '2026-10-27T00:00:00.000Z',
+        null,
+        'Asia/Ho_Chi_Minh',
+        15,
+      );
+      expect(remindAt.toISOString()).toBe('2026-10-27T00:00:00.000Z');
     });
   });
 });

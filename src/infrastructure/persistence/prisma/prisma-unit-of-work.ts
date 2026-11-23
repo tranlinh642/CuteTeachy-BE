@@ -9,6 +9,7 @@ import { PrismaTaskRepository } from './repositories/prisma-task.repository';
 import { PrismaNoteRepository } from './repositories/prisma-note.repository';
 import { PrismaTimetableSlotRepository } from './repositories/prisma-timetable-slot.repository';
 import { PrismaClassSessionRepository } from './repositories/prisma-class-session.repository';
+import { PrismaAiChatMessageRepository } from './repositories/prisma-ai-chat-message.repository';
 
 @Injectable()
 export class PrismaUnitOfWork implements UnitOfWork {
@@ -21,6 +22,7 @@ export class PrismaUnitOfWork implements UnitOfWork {
       const noteRepo = new PrismaNoteRepository(tx);
       const timetableSlotRepo = new PrismaTimetableSlotRepository(tx);
       const classSessionRepo = new PrismaClassSessionRepository(tx);
+      const aiChatMessageRepo = new PrismaAiChatMessageRepository(tx);
 
       return work({
         tagRepo,
@@ -28,6 +30,7 @@ export class PrismaUnitOfWork implements UnitOfWork {
         noteRepo,
         timetableSlotRepo,
         classSessionRepo,
+        aiChatMessageRepo,
       });
     });
   }
